@@ -1,0 +1,150 @@
+* VERSION 2
+* Paper outline
+** general problem (100)
+Modular compilation
+** example
+data Exp = Int Int | Add Exp Exp
+data Exp' = If Exp' Exp' Exp'
+blog post
+** why + what is done (10) 
+compilation is hard..
+we solve with compiler phases
+boilerplate for
+-> many IRs
+-> many transformations
+invariants not enforced by types
+modular compilation is a solution/aid to this
+** essence of our solution (10)
+we use these data structures:
+- open unions
+- free/freer monad flavor
+- types?
+** technical details (3)
+continuation conversion
+closure conversion
+lambda lifting
+
+** related work (30)
+https://github.com/yallop/effects-bibliography
+kiselyov
+wadler
+swierstra
+
+schrijvers
+laurence e day (thesis)
+...
+
+* Helpful quotes
+*compilers for free
+The key idea behind our approach is to specify the semantics as a monadic denotation
+function which folds over the abstract syntax tree of our object language, and yields
+as output a monadic computation.
+
+*compilation a la carte
+modularity on which comparatively little work has been done, namely according to the
+features supported by the source language, of which there are two varieties. First of
+all, there are effectful features, such as exception handling and mutable state, and
+secondly those relating to control- flow, such as conditional expressions and 
+recursion schemes.
+
+*optrees
+We ensure that you can define handlers for effects in a way that those handlers get 
+automatically applied to all nodes in the tree (it doesn’t in your approach; e.g., 
+under lambdas), and provide the programmer who defines the handler with control over 
+the effect control flow. E.g., you do not want to actually evaluate state operations 
+(get,put) under a lambda; you want to make the body of lambdas parametric in a store; 
+and you want to apply the body of the lambda in the context of whatever store you have
+at application nodes.
+
+Compiling with Abstractions
+
+
+* VERSION 1
+* introduction
+** research question
+Are the abstractions introduced in this paper helpful for compiler programmers?
+** contributions
+extension of compilation a la carte with well-known compiler transformations
+compiler written for functional language to typed assembly language
+invariants of compilation steps implemented in Haskell / Agda
+
+* functional compilers
+** compiler organization
+*** front-end
+*** back-end
+** how it is done
+*** CPS (Appel)
+*** enriched lambda calculus + supercombinators (Peyton-Jones)
+** denotational semantics
+** the expression problem
+*** a la carte
+*** effect handlers
+* compiler transformations
+** continuation conversion
+** closure conversion
+** lambda lifting
+* typed compilation
+** context indexed expressions
+** context lemma's
+** typed transformations
+
+* conclusion
+* references
+* appendix
+
+
+
+Source *> CPS             *> CPS (CC)         *> (Intermediate) *> Target
+Source *> Lambda + Letrec *> Supercombinators *> (Intermediate) *> Target
+
+Approach it in reverse: target language first!
+Approach it normal: source language first!
+Approach it injectively: source and target diff!
+Approach it intermediately: IR first!
+Approach it transformatively: transformations first!
+Approach it abstractly: 'for' programming constructs!
+Approach it modularly: abstractions first!
+
+*Ping modular compilation*
+
+*The main idea of this paper is (typed) modular compilation*
+
+Paper is a forcing function
+
+I'm a second year student and I want to learn about (functional) compilation
+
+syntactic representation of effectful computation
+Compiling functional language
+Compiling imperative language
+IR
+Cps IR
+Cps conversion
+CC conversion
+lambda lifting
+program representation
+source language
+target language
+lambda calculus
+(web)assembly
+Compiler organization
+Functor
+Fixpoint of functor
+Catamorphism
+The expression problem
+Data types a la carte
+Compilation a la carte
+Simple imperative language
+GADTs
+compiling effects
+free variables
+machine code generation
+abstract machine
+runtime
+modeling memory
+modeling control
+smart constructors
+algebras
+
+
+
+
