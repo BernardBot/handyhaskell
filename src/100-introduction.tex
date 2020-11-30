@@ -2,4 +2,29 @@
 
 \chapter{\label{chap:introduction}Introduction}
 
-Introduction here.\autocite{SustrikZeroMQ}
+% CPS is
+% - a method of compilation
+% - flexible
+% - lambda calculus minus
+% - an intermediate representation
+\ac{CPS} is a time-tested paradigm for functional compilation \autocite{steele1978rabbit, DBLP:books/daglib/0022396}. It bridges the gap between high-level programming languages and (abstract) machine code. Although \ac{CPS} is mostly used for compiling functional languages, it is flexible enough to compile imperative languages. \ac{CPS} is a style of programming, but can also be seen as a language in itself. More specifically, a restricted form of the lambda calculus \autocite{barendregt1984lambda}. This fact gives it a solid theoretical foundation.
+
+% IR needs to
+% - represent functions
+% - represent registers
+% - represent data flow
+% these are already satisfied by CPS, we add
+% - declarativity (front-end)
+% - confidence / restriction
+The language that is used by a compiler to represent source code is called an \ac{IR}. This is the data structure that a compiler writer will use to implement optimizations and translations. It will need to fulfill some requirements. To compile a simple language we will require our \ac{IR} represent: functions, registers, and data flow. These requirements are already met by \ac{CPS}. In this thesis we want to improve on this baseline. Our \ac{IR} will have a declarative front-end and be intrinsically typed. The goal of these two new properties are to help two groups of programmers: language implementers and compiler writers.
+
+% The contributions of this thesis are
+% - a compiler from the lambda calculus to webassembly
+% - multiple version of the IR
+% - analysis...
+The contributions of this thesis are the following:
+\begin{itemize}
+\item A WebAssembly compiler for the lambda calculus.
+\item Multiple versions that show the improvements over \ac{CPS}.
+\item Analysis of \ac{IR} requirements.
+\end{itemize}
