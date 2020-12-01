@@ -1,0 +1,35 @@
+% !TEX root = document.tex
+
+\chapter{\label{chap:cps}Continuation-passing style}
+% cps
+% - is a programming style.
+% - explicit control + data flow
+% - adds cont arg
+% - does not return
+\ac{CPS}\autocite{steel1975scheme} is a style of programming based on the use of continuations. In \ac{CPS} data flow and control flow are made explicit. Programming languages that support first-class functions, allow for programs written in \ac{CPS}. The primary difference from writing in the usual direct style is an extra argument for all functions called the continuation. The continuation represents our explicit control flow and tells us 'what to do next' in a program. It may be implemented as a function. Functions written in \ac{CPS} do not return, instead they will call their continuation argument with certain parameters. We will illustrate the basic differences between \ac{CPS} and direct style with two addition functions, one written in direct style and the other in \ac{CPS}. We see the differences immediately: there is an extra argument \lstinlineb{k} and it replaces the \lstinlineb{return} in the function body.
+
+\begin{lstlisting}[language=Python]
+def add(a, b):
+  return a + b
+
+def add_cps(a, b, k):   
+  k(a + b)           
+\end{lstlisting}
+
+% cps lambda calculus implementations (my blog post)
+% - show power of cps
+% - assembly in functional language vs. functional language in assembly...
+
+% cps better for compilation and harder to write, because
+% - names of intermediates
+% - function calls like gotos
+\ac{CPS} is easier to compile (and mostly harder to write) than direct style, because \ac{CPS} resembles \ac{asm}. After evaluating an expression we call a function with the result, storing it in the respective argument of that function. This is similar to storing results of operations in registers. Since we do not have to save return addresses, our function calls are like \lstinlineb{goto} or \lstinlineb{jmp} statements. This is precisely what makes writing code in \ac{CPS} hard: we need to give all intermediate results names and state the order of evaluation in more detail.
+
+% cps is not a writing language, but a rewriting language
+% - easy source to source
+% - resembles control flow graph
+% - has functions and records
+\ac{CPS} is a language that is used as an \ac{IR} for compilers of functional languages\autocite{steele1978rabbit, DBLP:books/daglib/0022396}. \ac{CPS} itself can be representedd as a functional language. In this thesis we follow the \ac{CPS} language datatype definition by \citeauthor{DBLP:books/daglib/0022396} with some minor adjustments. This ensures the properties that are just conventions when writing in \ac{CPS}. It is similar to the control flow graph of a program. Persistent data is modeled with records. The \ac{CPS} language is hard to write and easy to rewrite. Rewriting the \ac{IR} is exactly what our compiler does.
+
+% cps relation to lambda calculus?
+% cps type system?
