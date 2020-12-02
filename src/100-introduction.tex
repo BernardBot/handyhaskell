@@ -15,7 +15,7 @@ CPS is a time-tested paradigm for functional compilation\autocite{steele1978rabb
 % these are already satisfied by CPS, we add
 % - declarativity (front-end)
 % - confidence / restriction
-The language that is used by a compiler to represent source code is called an \ac{IR}. This is the data structure that a compiler writer will use to implement optimizations and translations. It will need to fulfill some requirements in order to make compilation possible and pleasant. A basic requirement for an \ac{IR} is to be able to model memory and control flow. These requirements are already met by \ac{CPS} with record structures and continuations, respectively. In this thesis we want to improve on this baseline. Our \ac{IR} will have a declarative front-end and some intrinsic types. The goal of these new properties is to help programmers that are translating to the \ac{IR} and programmers writing the transformations of the \ac{IR} itself.
+The language that is used by a compiler to represent source code is called an \ac{IR}. This is the data structure that a compiler writer will use to implement optimizations and translations. It will need to fulfill some requirements in order to make compilation possible and pleasant. A basic requirement for an \ac{IR} is to be able to model memory and control flow\autocite{bruin2020framevm}. These requirements are already met by \ac{CPS} with record structures and continuations, respectively. In this thesis we want to improve on this baseline. Our \ac{IR} will have a declarative front-end and some intrinsic types. The goal of these new properties is to help programmers that are translating to the \ac{IR} and programmers writing the transformations of the \ac{IR} itself.
 
 % Our compiler
 % - lambda -> WA
