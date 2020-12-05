@@ -2,3 +2,57 @@
 
 \chapter{\label{chap:compiler}The LamToWat compiler}
 
+The LamToWat compiler is a \ac{WA} compiler for the call-by-value, untyped lambda calculus with addition and numbers, implemented in Haskell. It is not meant to be an efficient compiler. The purpose of the compiler is to study different \acp{IR}. Multiple passes over the \ac{IR} will be made, each transforming a part of the representation. We perform three transformations on the \ac{IR} in total: closure conversion, hoisting, and emitting. The complete compiler consists of these three steps with additional steps to read in source files and printing the result.
+
+% TODO: make this better
+\begin{gather*}
+  \mbox{source} \xrightarrow{\mbox{lexing}} \mbox{tokens} \xrightarrow{\mbox{parsing}} \mbox{lambda} \xrightarrow{\mbox{cps conversion}} \\
+  \mbox{cps} \xrightarrow{\mbox{closure conversion}} \mbox{cc-cps} \xrightarrow{\mbox{hoisting}} \mbox{hoisted-cc-cps} \xrightarrow{\mbox{emitting}} \\
+  \mbox{abstract WA} \xrightarrow{\mbox{printing}} \mbox{WA}
+\end{gather*}
+
+% TODO explain sections
+
+\section{\label{section:comporg}Compiler organization}
+\subsection{\label{section:cpsconvert}CPS conversion}
+
+The front-end of the compiler is made up of: lexing, parsing, and \ac{CPS} conversion. We will not discuss lexing and parsing in detail, as it is irrelevant to the research in this thesis. We use \lstinlineb{Alex} and \lstinlineb{Happy} to generate both a lexer and a parser for our compiler, respectively. These tools are also used in the front-end of \ac{GHC}. The lexer converts source files into tokens and the parser in turn converts these tokens into an \ac{AST}. LamToWat uses a Haskell datatype to represent the \ac{AST} of the lambda calculus with addition. 
+
+\begin{lstlisting}[language=Haskell]
+type Var = String
+
+data Exp
+  = Abs Var Exp
+  | App Exp Expg
+  | Var Var
+  | Num Int
+  | Add Exp Exp
+\end{lstlisting}
+
+The lambda calculus \ac{AST} will be converted into the \ac{CPS} datatype listed in section \ref{section:cwc}. \ac{CPS} conversion gives all intermediate variables a name and makes control flow explicit. This is a very abstract notion of what we need to do. In practice we will need a monad to generate fresh variable names and a metacontinuation to manage control flow. This becomes clearer when illustrated with an example.
+
+\begin{lstlisting}[language=Haskell]
+convert (Abs x e) c = do
+  f <- fresh "f"
+  k <- fresh "k"
+  c' <- c (LABEL f)
+  cf <- convert e (\ z ->
+         return $ APP (VAR k) [z])
+  return $ FIX [(f,[x,k],cf)] c'
+\end{lstlisting}
+
+Here we show a part of the \lstinlineb{convert} function. In this case it converts a lambda abstraction to \ac{CPS}. We generate two fresh variables \lstinlineb{f} and \lstinlineb{k} for the function name and one for the continuation of the body of the function. The metacontinuation \lstinlineb{c} is passed the freshly generated name of our function. The \lstinlineb{LABEL} constructor is used to indicate that the variable references a function. Then we convert the body of our function and bind the result to \lstinlineb{z}, to which the continuation \lstinlineb{k} is applied. We can finally construct our recursive function binding. Note the extra argument \lstinlineb{k}.
+
+We can give an example of the \ac{CPS} conversion in action to see how it works.
+\begin{lstlisting}[language=Haskell]
+λ> cpsify (Abs "x" (Num 42))
+
+def .f0(x,.k1):
+  .k1(42)
+_.f0
+\end{lstlisting}
+
+Our converted function is given the name \lstinlineb{.f0}. It still has the argument \lstinlineb{x} and an extra continuation argument \lstinlineb{.k1}. The result of the function body is passed to the continuation \lstinlineb{.k1}. The function name is the final expression of the converted program. It is a label for a function, and thus prefixed with an underscore.
+
+\subsection{\label{section:closconvert}Closure conversion}
+\section{\label{section:comtree}Command Trees}
