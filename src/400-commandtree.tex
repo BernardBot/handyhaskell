@@ -1,0 +1,31 @@
+% !TEX root = document.tex
+
+\chapter{\label{chap:commandtree}Command Tree}
+To obtain a more modular approach for representing compiler transformations we introduce command trees\autocite{commandtreespoulsen}. Command trees are implemented using Haskell \acp{GADT}. A \ac{GADT} gives us the power to add more types to our \ac{IR}.
+
+\begin{lstlisting}[language=Haskell]
+data Tree sig a where
+  Leaf :: a -> Tree sig a
+  Node :: sig n b p r q ->
+          Vec n (p -> Tree sig r) ->
+          Option b (q -> Tree sig a) ->
+          Tree sig a
+\end{lstlisting}
+
+% copy-paste explanation from blog post?
+
+On a high level command trees are a way to sequence commands. A well known data structure that is also capable of this is a list. Command trees improve upon lists by adding types that restrict its structure and the ability to use the result of one command in the commands after that. Just like lists, command trees are monads. This allows us to bind command trees together easily and write functions using command trees with monadic sugar.
+
+Without commands we can not do anything with our command trees. We will use a set of commands that reflect the constructors from the \ac{CPS} datatype. We also define a number of extra commands that will help us compile. The modularity of commands will provide us with the ability to make transformations explicit in the datatype without much boilerplate.
+
+% from good to bad
+% command trees
+% - improved version with command trees
+%   - bridge: conversion function, hard to type the IRs without explosion
+% - explain free monads in the blog post again
+% - how is it going to help with the problem
+% *use monadic sugar from haskell (denotation function)*
+%   - modular optrees for subsets of signatures
+% 
+% how transformation on themselves?
+% does not work...
