@@ -12,11 +12,10 @@ The LamToWat compiler is a \ac{WA} compiler for the call-by-value, untyped lambd
 
 % TODO explain sections
 
-\section{\label{section:comporg}Compiler organization}
 The multiple passes of the LamToWat compiler are split into a front-end and a back-end. The front-end of the compiler is made up of lexing, parsing, and \ac{CPS} conversion. We will not discuss lexing and parsing in detail, as it is irrelevant to the research in this thesis. We use \lstinlineb{Alex}\autocite{haskellalex} and \lstinlineb{Happy}\autocite{haskellhappy} to generate both a lexer and a parser for our compiler, respectively. These tools are also used in the front-end of \ac{GHC}. The lexer converts source files into tokens and the parser in turn converts these tokens into an \ac{AST}. The back-end of the LamToWat compiler consist of three transformations on the \ac{IR}: closure conversion, hoisting, and emitting.
 
-\subsection{\label{section:cpsconvert}CPS conversion}
-\ac{CPS} conversion will transform the lambda calculus \ac{AST} into the \ac{CPS} datatype listed in section \ref{section:cwc}. LamToWat uses a Haskell datatype to represent the \ac{AST} of the lambda calculus with addition. 
+\section{\label{section:cpsconvert}CPS conversion}
+\ac{CPS} conversion will transform the lambda calculus \ac{AST} into the \ac{CPS} datatype listed in section \ref{section:cwc}. LamToWat uses a Haskell datatype to represent the \ac{AST} of the lambda calculus with addition. There are five constructors in total corresponding to: function abstraction, application, variables, numbers, and addition. Variables are represented by strings and numbers are integer constants. It is obvious that this datatype is not in \ac{CPS}: the application constructor takes non-value expressions. Note that we could define a \ac{CPS} conversion on the datatype itself, but prefer the syntactic constraints from our own \ac{CPS} datatype.
 
 \begin{lstlisting}[language=Haskell]
 type Var = String
@@ -29,7 +28,7 @@ data Exp
   | Add Exp Exp
 \end{lstlisting}
 
-\ac{CPS} conversion gives all intermediate variables a name and makes control flow explicit. This is a very abstract notion of what we need to do. In practice we will need a monad to generate fresh variable names and a metacontinuation to manage control flow. This becomes clearer when illustrated with an example.
+\ac{CPS} conversion gives all intermediate variables a name and makes control flow explicit. This is a very abstract notion of what we need to do. In practice we will have a monad to generate fresh variable names and a metacontinuation to manage control flow. The conversion effects only the part of the lambda language that has nested expressions. This means function abstraction, application, and addition. We will convert the sub-expressions, give them a name and construct an expression in the \ac{CPS} language with these fresh names. How conversion actually works becomes clearer when illustrated with an example of converting function abstraction.
 
 \begin{lstlisting}[language=Haskell]
 convert (Abs x e) c = do
@@ -53,7 +52,7 @@ _.f0
 
 We give an example of the \ac{CPS} conversion in action to see how it works. We show a pretty printed version of the \ac{CPS} datatype. Our converted function is given the name \lstinlineb{.f0}. It still has the argument \lstinlineb{x} and an extra continuation argument \lstinlineb{.k1}. The result of the function body is passed to the continuation \lstinlineb{.k1}. The function name is the final expression of the converted program. It is a label for a function, and thus prefixed with an underscore.
 
-\subsection{\label{section:closconvert}Closure conversion}
+\section{\label{section:closconvert}Closure conversion}
 The lambda calculus has higher-order, nested functions. In order to represent these in \ac{WA} we perform closure conversion on \ac{CPS}. Closure conversion makes sure that functions no longer contain free variables. We package both a function pointer and its respective free variables in what is called a closure. Our function applications and function definitions will change. When we apply a closure we extract the function pointer and then apply it to both the closure itself and its original arguments. Functions will take an extra argument, which we name the environment. This argument will be a record containing all the free variables of the function. In the function body these variables will be extracted from the record and thus become available in the function body scope. When a function is passed as an argument we will need to pass a closure instead.
 
 Determining the free variables of a function in \ac{CPS} is not trivial. \ac{CPS} has mutually recursive function definitions in the \lstinlineb{FIX} expression. When one functiion is used inside another function, the free variables of the enclosed function need to be added to the free variables of the enclosing function. There can even be circular dependencies between functions. For example: function f encloses function g, function g encloses function h, and function h encloses function f. This problem can be solved by live variable analysis\autocite{DBLP:books/aw/AhoSU86}. LamToWat simplifies the problem significantly by instead of determining the smallest set of free variables in a function, it takes all variables that are defined at the point of function definition substracted by the function's arguments. This simplification comes at a cost: bigger closures. Bigger closures require more space on the heap and we will need more operations to manipulate their contents.
@@ -70,13 +69,13 @@ def .f0(.env,x,.k1):
 
 We show how to closure convert our example function \lstinlineb{\ x -> 42}. Our function \lstinlineb{.f0} takes the extra environment argument \lstinlineb{.env}. The first thing that happens in the function body is extraction of the first element of the environment. This will be a function pointer, which is then immediately applied to itself and the original argument 42. After the function definition we see closure creation. The closure variable has the \lstinlineb{_C} suffix and in our case consists only of a function pointer. The final expression is the closure variable.
 
-\subsection{\label{section:hoist}Hoisting}
+\section{\label{section:hoist}Hoisting}
 After our functions have been closure converted we can hoist all function definitions to the top level. This will transform our program into a single mutually recursive function definition with one expression. Hoisting is a non-local transformation: the entire expression tree is affected. The implementation of this function makes heavy use of recursion.
 
-\subsection{\label{section:hoist}Emitting}
+\section{\label{section:hoist}Emitting}
 The emit transformation is quite trivial at the constructor level, as our \ac{IR} has been sufficiently transformed to match the structure of a \ac{WA} module. There are some small details that need to be addressed in order for the program to execute properly. Before we can print \ac{WA} we transform our closure converted, hoisted \ac{CPS} into an abstract representation of \ac{WA} in Haskell. This gives us some guarantees about the structure of our program before printing it. The abstract \ac{WA} datatype is a subset of all \ac{WA} expressions. A \ac{WA} module consist of a list of \ac{WA} statements. \ac{WA} statements (sometimes called top expressions) consist of \ac{WA} expressions, variables, integers, and types. \ac{WA} expressions consist of integers, variables, and \ac{WA} expression.
 
-\ac{WA} is a typed assembly lanugage. What this means is that functions will have a type signature. There are four base types in \ac{WA}: 32-bit integers, 64-bit integer, 32-bit floats, and 64-bit floats. Abstract \ac{WA} narrows this down to one: 32-bit integers. These types are used as both normal numbers and pointers. At compile time the types of all variables that are in function position need to be known. \ac{CPS} will call functions dynamically. \ac{WA} has a special call instruction for this named \lstinlineb{Call_Indirect}. This instruction is given an extra argument: the type of the dynamically called function variable. Generating these types is easily done, as all our function arguments are of the base type. This is because both numbers, functions, and records are represented with 32-bit integers. All our functions will return a 32-bit integer. At every call site we count the number of arguments to generate the correct type. For example: a variable \lstinlineb{f} called with three arguments would result in the type \lstinlineb{(i32,i32,i32) -> i32}.
+\ac{WA} is a typed assembly language. What this means is that functions will have a type signature. There are four base types in \ac{WA}: 32-bit integers, 64-bit integer, 32-bit floats, and 64-bit floats. Abstract \ac{WA} narrows this down to one: 32-bit integers. This type used as both a normal number and a pointer. At compile time the types of all variables that are in function position need to be known. \ac{CPS} will call functions dynamically. \ac{WA} has a special call instruction for this named \lstinlineb{Call_Indirect}. This instruction is given an extra argument: the type of the dynamically called function variable. Generating these types is easily done, as all our function arguments are of the base type. This is because both numbers, functions, and records are represented with 32-bit integers. All our functions will return a 32-bit integer. At every call site we count the number of arguments to generate the correct type. For example: a variable \lstinlineb{f} called with three arguments would result in the type \lstinlineb{(i32,i32,i32) -> i32}.
 
 Another detail of \ac{WA} is that all locally used variables and their types need to be declared in the function signature. Local variables are determined with an auxillary function. We can then generate the required signature by combining all variables with the 32-bit integer type.
 
@@ -85,35 +84,7 @@ Records will be represented by integer pointers. Their elements will be allocate
 \section{\label{section:comtree}Transformations as datatypes}
 The transformation in the back-end of the LamToWat compiler change the structure and properties of the \ac{IR}. To make these transformations more explicit we can use three different datatypes: the original \ac{CPS} datatype, a closure converted datatype, and a hoisted datatype. The transformations themselves do not change significantly, but their qualities are confirmed by the datatypes.
 
-Instead of representing closures by records we introduce two new constructors: \lstinlineb{CLOSE} and \lstinlineb{OPEN}. They represent the creation and destriction of closures. They contain the function pointer and free variables of a function.
+Instead of representing closures by records we introduce two new constructors: \lstinlineb{CLOSE} and \lstinlineb{OPEN}. They represent the creation and destruction of closures. They contain the function pointer and free variables of a function.
 
 By separating our mutually recursive function definition expression from the rest of the expressions, we can enforce the unnesting of functions. Since this datatype is used after the closure conversion transformation, we will need to include the \lstinlineb{CLOSE} and \lstinlineb{OPEN} constructors as well.
 
-\section{\label{section:comtree}Command Trees}
-To obtain a more modular approach for representing compiler transformations we introduce command trees\autocite{commandtreespoulsen}. There will be two types of command trees. A semantic command tree will be used in the front-end of the compiler and a syntactic command tree in the back-end. The semantic version is less flexible than the syntactic one, but enforces some tighter restrictions. Command trees are implemented using Haskell \acp{GADT}. A \ac{GADT} gives us the power to add more types to our \ac{IR}.
-
-\begin{lstlisting}[language=Haskell]
--- semantic command tree
-data Tree sig a where
-  Leaf :: a -> Tree sig a
-  Node :: sig n b p r q ->
-          Vec n (p -> Tree sig r) ->
-          Option b (q -> Tree sig a) ->
-          Tree sig a
-
--- syntactic command tree
-data Tree sig a where
-  Leaf :: a -> Tree sig a
-  Node :: sig p r q ->
-          [(p, Tree sig r)] ->
-          Maybe (q, Tree sig a) ->
-          Tree sig a
-\end{lstlisting}
-
-% copy-paste explanation from blog post?
-
-On a high level command trees are a way to sequence commands. A well known data structure that is also capable of this is a list. Command trees improve upon lists by adding types that restrict its structure and the ability to use the result of one command in the commands after that. Just like lists, command trees are monads. This allows us to bind command trees together easily and write functions using command trees with monadic sugar.
-
-Without commands we can not do anything with our command trees. We will use a set of commands that reflect the constructors from the \ac{CPS} datatype. We also define a number of extra commands that will help us compile. The commands, like the command trees, will be split into semantic and syntactic commands. The modularity of commands will provide us with the ability to make transformations explicit in the datatype without much boilerplate.
-
-\subsection{\label{section:openunion}Open union}
