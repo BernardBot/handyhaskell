@@ -23,7 +23,7 @@ type Var = String
 
 data Exp
   = Abs Var Exp
-  | App Exp Expg
+  | App Exp Exp
   | Var Var
   | Num Int
   | Add Exp Exp
@@ -54,9 +54,9 @@ _.f0
 We give an example of the \ac{CPS} conversion in action to see how it works. We show a pretty printed version of the \ac{CPS} datatype. Our converted function is given the name \lstinlineb{.f0}. It still has the argument \lstinlineb{x} and an extra continuation argument \lstinlineb{.k1}. The result of the function body is passed to the continuation \lstinlineb{.k1}. The function name is the final expression of the converted program. It is a label for a function, and thus prefixed with an underscore.
 
 \subsection{\label{section:closconvert}Closure conversion}
-The lambda calculus has higher-order, nested functions. In order to represent these in \ac{WA} we perform closure conversion on \ac{CPS}. Closure conversion makes sure that functions no longer contain free variables. We package both a function pointer and its respective free variables in what is called a closure. Both our function application and function definitions will change. When we apply a closure we extract the function pointer and then apply it to both the closure itself and its original arguments. Functions will take an extra argument, which we name the environment. This argument will be a record containing all the free variables of the function. In the function body these variables will be extracted from the record and thus become available in the function body scope. When a function is passed as an argument we will need to pass a closure instead.
+The lambda calculus has higher-order, nested functions. In order to represent these in \ac{WA} we perform closure conversion on \ac{CPS}. Closure conversion makes sure that functions no longer contain free variables. We package both a function pointer and its respective free variables in what is called a closure. Our function applications and function definitions will change. When we apply a closure we extract the function pointer and then apply it to both the closure itself and its original arguments. Functions will take an extra argument, which we name the environment. This argument will be a record containing all the free variables of the function. In the function body these variables will be extracted from the record and thus become available in the function body scope. When a function is passed as an argument we will need to pass a closure instead.
 
-Determining the free variables of a function in \ac{CPS} is not trivial. \ac{CPS} has mutually recursive function definitions in the \lstinlineb{FIX} expression. When one functiion is used inside another function, the free variables of the enclosed function need to be added to the free variables of the enclosing function. There can even be circular dependencies between functions. For example: function f encloses function g, function g encloses function h, and function h encloses function f. This problem can be solved by live variable analysis\autocite{DBLP:books/aw/AhoSU86}. LamToWat simplifies the problem significantly by instead of determining the smallest set of free variables in a function, it takes all variables that are defined at the point of function definition substracted by the function's arguments. This simplification comes at a cost: bigger closures. Bigger clossures require more space on the heap and we will need more project and inject operations to manipulate their contents.
+Determining the free variables of a function in \ac{CPS} is not trivial. \ac{CPS} has mutually recursive function definitions in the \lstinlineb{FIX} expression. When one functiion is used inside another function, the free variables of the enclosed function need to be added to the free variables of the enclosing function. There can even be circular dependencies between functions. For example: function f encloses function g, function g encloses function h, and function h encloses function f. This problem can be solved by live variable analysis\autocite{DBLP:books/aw/AhoSU86}. LamToWat simplifies the problem significantly by instead of determining the smallest set of free variables in a function, it takes all variables that are defined at the point of function definition substracted by the function's arguments. This simplification comes at a cost: bigger closures. Bigger closures require more space on the heap and we will need more operations to manipulate their contents.
 
 \begin{lstlisting}[language=Haskell]
 > closify $ cpsify  (Abs "x" (Num 42))
@@ -83,5 +83,37 @@ Another detail of \ac{WA} is that all locally used variables and their types nee
 Records will be represented by integer pointers. Their elements will be allocated on the heap. We will need to keep track of which part of the heap is still free to allocate new records. We use a global heap pointer that gets incremented everytime a new record is put on the heap. There is no garbage collection. Thus if a program runs long enough the heeap will become full leading to a crash with a heap exhaustion error. 
 
 \section{\label{section:comtree}Transformations as datatypes}
+The transformation in the back-end of the LamToWat compiler change the structure and properties of the \ac{IR}. To make these transformations more explicit we can use three different datatypes: the original \ac{CPS} datatype, a closure converted datatype, and a hoisted datatype. The transformations themselves do not change significantly, but their qualities are confirmed by the datatypes.
+
+Instead of representing closures by records we introduce two new constructors: \lstinlineb{CLOSE} and \lstinlineb{OPEN}. They represent the creation and destriction of closures. They contain the function pointer and free variables of a function.
+
+By separating our mutually recursive function definition expression from the rest of the expressions, we can enforce the unnesting of functions. Since this datatype is used after the closure conversion transformation, we will need to include the \lstinlineb{CLOSE} and \lstinlineb{OPEN} constructors as well.
 
 \section{\label{section:comtree}Command Trees}
+To obtain a more modular approach for representing compiler transformations we introduce command trees\autocite{commandtreespoulsen}. There will be two types of command trees. A semantic command tree will be used in the front-end of the compiler and a syntactic command tree in the back-end. The semantic version is less flexible than the syntactic one, but enforces some tighter restrictions. Command trees are implemented using Haskell \acp{GADT}. A \ac{GADT} gives us the power to add more types to our \ac{IR}.
+
+\begin{lstlisting}[language=Haskell]
+-- semantic command tree
+data Tree sig a where
+  Leaf :: a -> Tree sig a
+  Node :: sig n b p r q ->
+          Vec n (p -> Tree sig r) ->
+          Option b (q -> Tree sig a) ->
+          Tree sig a
+
+-- syntactic command tree
+data Tree sig a where
+  Leaf :: a -> Tree sig a
+  Node :: sig p r q ->
+          [(p, Tree sig r)] ->
+          Maybe (q, Tree sig a) ->
+          Tree sig a
+\end{lstlisting}
+
+% copy-paste explanation from blog post?
+
+On a high level command trees are a way to sequence commands. A well known data structure that is also capable of this is a list. Command trees improve upon lists by adding types that restrict its structure and the ability to use the result of one command in the commands after that. Just like lists, command trees are monads. This allows us to bind command trees together easily and write functions using command trees with monadic sugar.
+
+Without commands we can not do anything with our command trees. We will use a set of commands that reflect the constructors from the \ac{CPS} datatype. We also define a number of extra commands that will help us compile. The commands, like the command trees, will be split into semantic and syntactic commands. The modularity of commands will provide us with the ability to make transformations explicit in the datatype without much boilerplate.
+
+\subsection{\label{section:openunion}Open union}
