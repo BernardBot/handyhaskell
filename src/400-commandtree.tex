@@ -14,7 +14,7 @@ data Tree sig a where
 
 On a high level command trees are a way to sequence commands. A well known data structure that is also capable of this is a list. Command trees improve upon lists by adding types that restrict its structure and the ability to use the result of one command in the commands after that. Just like lists, command trees are monads. This allows us to bind command trees together easily and write functions using command trees with monadic sugar. Commands are a syntactic representations of a monadic computations. In simpler terms this can be described as the meaning of a command is something that is left to the programmer. What a command does is implemented later in a function sometimes called a handler.
 
-The structure and monadic nature of command trees have already been discussed in \fullcite{commandtreespoulsen}. A modified version of the discussion will be restated here for completeness. A commandd tree consists of two constructors: \lstinlineb{Leaf} and \lstinlineb{Node}. \lstinlineb{Leaf v} is the smallest form of command tree that exists and simply returns the value \lstinline{v}. A \lstinlineb{Node op vs k} command tree is somewhat more complex and is made up of three parts:
+The structure and monadic nature of command trees have already been discussed in \citetitle{commandtreespoulsen}. A modified version of the discussion will be restated here for completeness. A command tree consists of two constructors: \lstinlineb{Leaf} and \lstinlineb{Node}. \lstinlineb{Leaf v} is the smallest form of command tree that exists and simply returns the value \lstinline{v}. A \lstinlineb{Node op vs k} command tree is somewhat more complex and is made up of three parts:
 
 \begin{itemize}
 \item An operation \lstinlineb{op} with signature \lstinlineb{sig},
@@ -22,7 +22,7 @@ The structure and monadic nature of command trees have already been discussed in
 \item An optional continuation (also called join-point) \lstinlineb{k}.
 \end{itemize}
 
-A command tree does not know what the set of commands is that are being used. However, it does encode strong type constraints on its subcontinuations and continuation. To enforce these constraints we use a signature \lstinlineb{sig}. This way a command tells the command tree what comes after itself. More formally a signature has type:
+A command tree does not know what set of commands is used. However, it does encode strong type constraints on its subcontinuations and continuation. To enforce these constraints we use a signature \lstinlineb{sig}. This way a command tells the command tree what comes after itself. More formally a signature has type:
 
 \begin{lstlisting}[language=Haskell]
 sig :: Nat -> Bool -> * -> * -> * -> *
@@ -39,7 +39,7 @@ A signature instance \lstinlineb{sig n b p r q} tells us the following things:
 \end{itemize}
 
 \section{\label{opmonad}Operational Monad}
-Although not necessary to understand the usefulness and implementation of command trees for use in the LamToWat compiler, we will give some history and background on the datatype. The paper \fullcite{DBLP:conf/haskell/KiselyovI15} gives a derivation of the freer monad, a close relative of the command tree. We follow a similar style. The main problem the command tree and its relatives address is: expressing side-effectful computation in a composable/modular manner. We will start by unpacking this definition.
+Although not necessary to understand the usefulness and implementation of command trees for use in the LamToWat compiler, we will give some history and background on the datatype. The paper \citetitle{DBLP:conf/haskell/KiselyovI15} gives a derivation of the freer monad, a close relative of the command tree. We follow a similar style. The main problem the command tree and its relatives address is: expressing side-effectful computation in a composable/modular manner. We will start by unpacking this definition.
 
 A side-effect can be understood as an interaction of an expression with its context\autocite{DBLP:conf/tacs/CartwrightF94}. A concrete example is a number of clients and a central server. A side-effect is a request from a client to the server. This can be a request for some data or an action. From this it follows immediately that we can model side effects with datatypes that specify such a request. A trivial example is a ping request.
 
@@ -48,7 +48,7 @@ data Request = Ping
 \end{lstlisting}
 
 % use results of computation
-The result of the ping request may be used in another part of the program. Our \lstinlineb{Request} datatype does not indicate what the return type of a ping request will be. Moreover, there is no place where the result is bound. We can define a datatype that helps us with both these problems. We will call it \lstinlinbe{Compute}.
+The result of the ping request may be used in another part of the program. Our \lstinlineb{Request} datatype does not indicate what the return type of a ping request will be. Moreover, there is no place where the result is bound. We can define a datatype that helps us with both these problems. We will call it \lstinlineb{Compute}.
 
 \begin{lstlisting}[language=Haskell]
 data Compute = Done Int | Compute Request (Int -> Compute)
