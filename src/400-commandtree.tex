@@ -1,7 +1,7 @@
 % !TEX root = document.tex
 
 \chapter{\label{chap:commandtree}Command Tree}
-To obtain a more modular approach for representing compiler transformations we introduce command trees\autocite{commandtreespoulsen}. Command trees are implemented using Haskell \acp{GADT}. A \ac{GADT} gives us the power to add more types to our \ac{IR}.
+To obtain a more modular approach for representing compiler transformations we introduce command trees\autocite{commandtreespoulsen}. Additionally, command trees allow us to express the \ac{CPS} conversion of a language in a descriptive (denotational) manner. Command trees are implemented using Haskell \acp{GADT}. A \ac{GADT} gives us the power to add more types to our \ac{IR}.
 
 \begin{lstlisting}[language=Haskell]
 data Tree sig a where
@@ -12,11 +12,82 @@ data Tree sig a where
           Tree sig a
 \end{lstlisting}
 
-% copy-paste explanation from blog post?
+On a high level command trees are a way to sequence commands. A well known data structure that is also capable of this is a list. Command trees improve upon lists by adding types that restrict its structure and the ability to use the result of one command in the commands after that. Just like lists, command trees are monads. This allows us to bind command trees together easily and write functions using command trees with monadic sugar. Commands are a syntactic representations of a monadic computations. In simpler terms this can be described as the meaning of a command is something that is left to the programmer. What a command does is implemented later in a function sometimes called a handler.
 
-On a high level command trees are a way to sequence commands. A well known data structure that is also capable of this is a list. Command trees improve upon lists by adding types that restrict its structure and the ability to use the result of one command in the commands after that. Just like lists, command trees are monads. This allows us to bind command trees together easily and write functions using command trees with monadic sugar.
+The structure and monadic nature of command trees have already been discussed in \fullcite{commandtreespoulsen}. A modified version of the discussion will be restated here for completeness. A commandd tree consists of two constructors: \lstinlineb{Leaf} and \lstinlineb{Node}. \lstinlineb{Leaf v} is the smallest form of command tree that exists and simply returns the value \lstinline{v}. A \lstinlineb{Node op vs k} command tree is somewhat more complex and is made up of three parts:
 
-Without commands we can not do anything with our command trees. We will use a set of commands that reflect the constructors from the \ac{CPS} datatype. We also define a number of extra commands that will help us compile. The modularity of commands will provide us with the ability to make transformations explicit in the datatype without much boilerplate.
+\begin{itemize}
+\item An operation \lstinlineb{op} with signature \lstinlineb{sig},
+\item A dependently typed vector of subcontinuations \lstinlineb{vs},
+\item An optional continuation (also called join-point) \lstinlineb{k}.
+\end{itemize}
+
+A command tree does not know what the set of commands is that are being used. However, it does encode strong type constraints on its subcontinuations and continuation. To enforce these constraints we use a signature \lstinlineb{sig}. This way a command tells the command tree what comes after itself. More formally a signature has type:
+
+\begin{lstlisting}[language=Haskell]
+sig :: Nat -> Bool -> * -> * -> * -> *
+\end{lstlisting}
+
+A signature instance \lstinlineb{sig n b p r q} tells us the following things:
+
+\begin{itemize}
+\item The tag of the command and its enclosed parameters.
+\item The number of subcontinuations \lstinlineb{n}.
+\item If the command has a continuation.
+\item The argument \lstinlineb{p} and return type \lstinline{r} of the subcontinuations.
+\item The argument type \lstinline{q} of the continuation.
+\end{itemize}
+
+\section{\label{opmonad}Operational Monad}
+Although not necessary to understand the usefulness and implementation of command trees for use in the LamToWat compiler, we will give some history and background on the datatype. The paper \fullcite{DBLP:conf/haskell/KiselyovI15} gives a derivation of the freer monad, a close relative of the command tree. We follow a similar style. The main problem the command tree and its relatives address is: expressing side-effectful computation in a composable/modular manner. We will start by unpacking this definition.
+
+A side-effect can be understood as an interaction of an expression with its context\autocite{DBLP:conf/tacs/CartwrightF94}. A concrete example is a number of clients and a central server. A side-effect is a request from a client to the server. This can be a request for some data or an action. From this it follows immediately that we can model side effects with datatypes that specify such a request. A trivial example is a ping request.
+
+\begin{lstlisting}[language=Haskell]
+data Request = Ping
+\end{lstlisting}
+
+% use results of computation
+The result of the ping request may be used in another part of the program. Our \lstinlineb{Request} datatype does not indicate what the return type of a ping request will be. Moreover, there is no place where the result is bound. We can define a datatype that helps us with both these problems. We will call it \lstinlinbe{Compute}.
+
+\begin{lstlisting}[language=Haskell]
+data Compute = Done Int | Compute Request (Int -> Compute)
+\end{lstlisting}
+
+\lstinlineb{Compute} has two constructors that have the same role as those of the command tree. The \lstinlineb{Done} constructor represents a computation without side effects that return an integer. \lstinlineb{Compute} binds \lstinlineb{Request}s together. The result of a request is an integer and may be used in the following computations. An example shows the datatypes in action. We send two sequential ping requests to the central server and bind them to the variables \lstinlineb{i} and \lstinlineb{j}. Finally, we return the average of both. How a ping request is actually implemented is left open. \lstinlineb{Request} just provides the interface for effectful computation.
+
+\begin{lstlisting}[language=Haskell]
+pingtwiceavg = Compute Ping (\ i -> Compute Ping (\ j -> Done ((i + j) `div` 2)))
+\end{lstlisting}
+
+This way of defining sequences of effectful computations is called operational\autocite{operationalmonad}. It is an alternative to other monadic implementations of side-effects. The upside of operational monads is their compositional nature. Traditional implementation of side-effects such as monad transformers\autocite{DBLP:conf/popl/LiangHJ95} also compose but suffer from non-commutative behavior.
+
+Haskell provides typeclasses for defining monads. Our \lstinlineb{Compute} datatype does not qualify for these, because Haskell requires monads to be parameterized over a type. We define our own \lstinlineb{bind} function, which composes two computations; the \lstinlineb{unit} function creates a trivial computation. In the implementation of the \lstinlineb{bind} function we see that it pushes a function from an integer to a computation into the continuation of a computation. This is similar to list concatenation.
+
+\begin{lstlisting}[language=Haskell]
+bind (Done i) f = f i
+bind (Compute r k) f = Compute r (flip bind f . k)
+-- unit is trivial
+unit = Done
+\end{lstlisting}
+
+With our monadic definitions in place we can create a pretty version of our previous program that takes the average ping. We will define a helper function that represent a program that sends a ping request and returns the result. This enables us to \lstinlineb{bind} these smaller programs together.
+
+\begin{lstlisting}[language=Haskell]
+ping = Compute Ping Done
+
+prettyping =
+  ping `bind` \ i ->
+  ping `bind` \ j ->
+  unit ((i + j) `div` 2)
+\end{lstlisting}
+
+% free monad
+% show improve upon Compute
+% show composition... (should be in commands)?
+
+\section{\label{cpscommands}CPS commands}
+Without commands we can not do anything with our command trees. We will use a set of commands that reflect the constructors from the \ac{CPS} datatype. We also define a number of extra commands that will help us compile. 
 
 % from good to bad
 % command trees
@@ -29,3 +100,4 @@ Without commands we can not do anything with our command trees. We will use a se
 % 
 % how transformation on themselves?
 % does not work...
+% The modularity of commands will provide us with the ability to make transformations explicit in the datatype without much boilerplate.
