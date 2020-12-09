@@ -10,9 +10,9 @@ The LamToWat compiler is a \ac{WA} compiler for the call-by-value, untyped lambd
   \mbox{abstract WA} \xrightarrow{\mbox{printing}} \mbox{WA}
 \end{gather*}
 
-% TODO explain sections
-
 The multiple passes of the LamToWat compiler are split into a front-end and a back-end. The front-end of the compiler is made up of lexing, parsing, and \ac{CPS} conversion. We will not discuss lexing and parsing in detail, as it is irrelevant to the research in this thesis. We use \lstinlineb{Alex}\autocite{haskellalex} and \lstinlineb{Happy}\autocite{haskellhappy} to generate both a lexer and a parser for our compiler, respectively. These tools are also used in the front-end of \ac{GHC}. The lexer converts source files into tokens and the parser in turn converts these tokens into an \ac{AST}. The back-end of the LamToWat compiler consist of three transformations on the \ac{IR}: closure conversion, hoisting, and emitting.
+
+% TODO explain sections
 
 \section{\label{section:cpsconvert}CPS conversion}
 \ac{CPS} conversion will transform the lambda calculus \ac{AST} into the \ac{CPS} datatype listed in section \ref{section:cwc}. LamToWat uses a Haskell datatype to represent the \ac{AST} of the lambda calculus with addition. There are five constructors in total corresponding to: function abstraction, application, variables, numbers, and addition. Variables are represented by strings and numbers are integer constants. It is obvious that this datatype is not in \ac{CPS}: the application constructor takes non-value expressions. Note that we could define a \ac{CPS} conversion on the datatype itself, but prefer the syntactic constraints from our own \ac{CPS} datatype.

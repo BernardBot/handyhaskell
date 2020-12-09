@@ -1,6 +1,6 @@
 % !TEX root = document.tex
 
-\chapter{\label{chap:commandtree}Command Tree}
+\chapter{\label{chap:commandtree}Command Trees}
 To obtain a more modular approach for representing compiler transformations we introduce command trees\autocite{commandtreespoulsen}. Additionally, command trees allow us to express the \ac{CPS} conversion of a language in a descriptive (denotational) manner. Command trees are implemented using Haskell \acp{GADT}. A \ac{GADT} gives us the power to add more types to our \ac{IR}.
 
 \begin{lstlisting}[language=Haskell]
@@ -145,11 +145,12 @@ data Cmd :: Nat -> Bool -> * -> * -> * -> * where
   Fresh  :: Var ->                Cmd 'Z      'True  Void  Void  Var
 \end{lstlisting}
 
-We can see that almost all our original constructors from the \ac{CPS} datatype are here. Except the \lstinlineb{DONE} constructor. This constructor will be modeled by the \lstinlineb{Leaf} of the command tree. The \lstinlineb{Var} and \lstinlineb{Val} type are the same as in \ac{CPS}. Our four extra commands represent state, help with command concatenation, and generate fresh variables. You may note that these operations can be implemented using standard Haskell monads (like the state monad). However, this would lead to using monad transformers on the tree itself, while also needing to produce a tree as a result, preventing us from exploiting the monadic nature of the command tree. This embedding leads to cleaner code, which is one of our objectives.
+We can see that almost all our original constructors from the \ac{CPS} datatype are here. Except the \lstinlineb{DONE} constructor. This constructor will be modeled by the \lstinlineb{Leaf} of the command tree. The \lstinlineb{Var} and \lstinlineb{Val} type are the same as in \ac{CPS}. Our four extra commands represent state, help with command concatenation, and generate fresh variables. You may note that these operations can be implemented using standard Haskell monads (like the state monad). However, this would lead to using monad transformers on the tree itself, while also needing to produce a tree as a result, preventing us from exploiting the monadic nature of the command tree. This embedding leads to more declarative code.
 
 We take a look at the signatures of the commands to see how they are structured. The \lstinlineb{Block} and \lstinlineb{Fix} command are the only ones that have subcontinuations. The \lstinlineb{Void} types show that when there is no subcontinuation, these subcontinuations will not have any members. \lstinlineb{Fix} has a subcontinuation for every function definition. This is required by the constructor itself as the natural number \lstinlineb{n} appears in both the function name with arguments and subcontinuations. The \lstinlineb{App} command does not have a continuation, which will lead to some trouble when trying to concatenate it with other commands. The return type of commands indicates that commands will bind to a variable \lstinlineb{Val} or only produce a side-effect \lstinlineb{()}.
 
-Using these commands, we can define an improved \ac{CPS} conversion. It is improved in the sense that it specifies a denotational semantics\autocite{DBLP:conf/tacs/CartwrightF94} of the language it converts. There are some details that spoil the declarativity of our conversion somewhat. The advantages and disadvantages of our new approach become clear when we examine the conversion of an abstraction. We use the sweet version of our commands.
+\subsection{\label{section:impcpsconvert}Improved CPS conversion}
+Using the \ac{CPS} commands, we can define an improved \ac{CPS} conversion. It is improved in the sense that it specifies a denotational semantics\autocite{DBLP:conf/tacs/CartwrightF94} of the language it converts. There are some details that spoil the declarativity of our conversion somewhat. The advantages and disadvantages of our new approach become clear when we examine the conversion of an abstraction in comparison to the one listed in section \ref{section:cpsconvert}. We use the sweet version of our commands.
 
 \begin{lstlisting}[language=Haskell]
 denote (Abs x e) = do
@@ -162,11 +163,28 @@ denote (Abs x e) = do
   return (LABEL f)
 \end{lstlisting}
 
+We generate a fresh function variable \lstinlineb{f} and continuation variable \lstinlineb{k}. We use these variables to create a function with name \lstinlineb{f} that has as argument the original variable and a continuation named \lstinlineb{k}. The body of the function will be the converted original body and a final statement that applies the continuation to the resulting variable. We finally return the function name wrapped in a \lstinlineb{LABEL}.
+
+We no longer have a metacontinuation argument in our conversion function. This simplifies the notation significantly. We still operate in a monad, however, this monad is the command tree, not the state monad. The order of our listed operations matches the order of our final program more closely.
+
 % TODO
-% explain conversion
+% better advantages / disadvantages
 
 \section{\label{section:transcomtree}Transforming command trees}
-After we have performed our \ac{CPS} conversion our code lives inside a command tree. We will now have to perform the transformations on the original \ac{CPS} datatype on the command tree. The abstract nature of command trees prevents us from defining these functions without escaping frrom its abstraction. The fundamental problem is that continuations are defined as functions in the metalanguage instead of syntactic constructs in the \ac{IR} itself.
+After we have performed our \ac{CPS} conversion our code lives inside a command tree. We will now have to perform the transformations on the original \ac{CPS} datatype on the command tree. The abstract nature of command trees prevents us from defining these functions without escaping from its abstraction. The fundamental problem is that continuations are defined as functions in the metalanguage instead of syntactic constructs in the \ac{IR} itself.
+
+The next step in the compiler is closure conversion. To define closure conversion, we first need to write a helper function that makes a map of defined variables for each function. Here our command tree breaks down, because variables are part of the metalanguage. We examine the case for addition. In the old version we could update our variable list with the name \lstinlineb{x} that was part of the \lstinlineb{ADD} expression itself. In the new version our variable name is hidden inside the continuation \lstinlineb{k}, which has type \lstinlineb{Val -> Tree Cmd Val}. If we want to access our continuation, we will have to generate a fresh variable name to apply it to. However, we would need the same generated variables again in the actual closure conversion. This is simply not practical. We need a syntactic embedding of variable binding in our \ac{IR} in order to perform closure conversion.
+
+\begin{lstlisting}[language=Haskell]
+-- old dv function
+dv (ADD _ _ x k) xs = dv k (x:xs)
+-- new dv function
+dv (Node (Plus _ _) Nil (Some k)) xs = _
+\end{lstlisting}
+
+% TODO
+% dv function kaput
+% generate variables is broken
 
 % from good to bad
 % command trees
