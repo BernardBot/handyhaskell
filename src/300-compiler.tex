@@ -81,7 +81,7 @@ Another detail of \ac{WA} is that all locally used variables and their types nee
 
 Records will be represented by integer pointers. Their elements will be allocated on the heap. We will need to keep track of which part of the heap is still free to allocate new records. We use a global heap pointer that gets incremented everytime a new record is put on the heap. There is no garbage collection. Thus if a program runs long enough the heeap will become full leading to a crash with a heap exhaustion error. 
 
-\section{\label{section:comtree}Transformations as datatypes}
+\section{\label{section:transdata}Transformations as datatypes}
 The transformation in the back-end of the LamToWat compiler change the structure and properties of the \ac{IR}. To make these transformations more explicit we can use three different datatypes: the original \ac{CPS} datatype, a closure converted datatype, and a hoisted datatype. The transformations themselves do not change significantly, but their qualities are confirmed by the datatypes.
 
 Instead of representing closures by records we introduce two new constructors: \lstinlineb{CLOSE} and \lstinlineb{OPEN}. They represent the creation and destruction of closures. They contain the function pointer and free variables of a function.
