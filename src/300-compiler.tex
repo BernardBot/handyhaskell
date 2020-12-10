@@ -84,7 +84,23 @@ Records will be represented by integer pointers. Their elements will be allocate
 \section{\label{section:transdata}Transformations as datatypes}
 The transformation in the back-end of the LamToWat compiler change the structure and properties of the \ac{IR}. To make these transformations more explicit we can use three different datatypes: the original \ac{CPS} datatype, a closure converted datatype, and a hoisted datatype. The transformations themselves do not change significantly, but their qualities are confirmed by the datatypes.
 
-Instead of representing closures by records we introduce two new constructors: \lstinlineb{CLOSE} and \lstinlineb{OPEN}. They represent the creation and destruction of closures. They contain the function pointer and free variables of a function.
+\begin{lstlisting}[language=Haskell]
+data Dexp
+  = ...
+  -- closure conversion
+  | OPEN Val Var [Var] Dexp
+  | CLOSE Val [Val] Var Dexp
+\end{lstlisting}
 
-By separating our mutually recursive function definition expression from the rest of the expressions, we can enforce the unnesting of functions. Since this datatype is used after the closure conversion transformation, we will need to include the \lstinlineb{CLOSE} and \lstinlineb{OPEN} constructors as well.
+Closure conversion is embodied by the \lstinlineb{Dexp} datatype. Instead of representing closures by records we introduce two new constructors in the: \lstinlineb{CLOSE} and \lstinlineb{OPEN}. They represent the creation and destruction of closures. They contain the function pointer and free variables of a function.
 
+\begin{lstlisting}[language=Haskell]
+data Fexp = FIX [Fun] Eexp
+data Eexp = ... -- excluding FIX
+\end{lstlisting}
+
+Hoisting is represented by two datatypes. By separating our mutually recursive function definition expression in \lstinlineb{Fexp} from the rest of the expressions in \lstinlineb{Eexp}, we can enforce the unnesting of functions. Since this datatype is used after the closure conversion transformation, we will need to include the \lstinlineb{CLOSE} and \lstinlineb{OPEN} constructors as well.
+
+% TODO
+% explosion
+Although these datatypes are easy to define and use, they cause the amount of code to explode. The datatypes can only be used for their specific transformations; they are not reusable. 
