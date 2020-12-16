@@ -67,7 +67,7 @@ def .f0(.env,x,.k1):
 .f0_C
 \end{lstlisting}
 
-We show how to closure convert our example function \lstinlineb{\ x -> 42}. Our function \lstinlineb{.f0} takes the extra environment argument \lstinlineb{.env}. The first thing that happens in the function body is extraction of the first element of the environment. This will be a function pointer, which is then immediately applied to itself and the original argument 42. After the function definition we see closure creation. The closure variable has the \lstinlineb{_C} suffix and in our case consists only of a function pointer. The final expression is the closure variable.
+We show how to closure convert our example function \lstinlineb{\ x -> 42}. Our function \lstinlineb{.f0} takes the extra environment argument \lstinlineb{.env}. The first thing that happens in the function body is extraction of the first element of the continuation. This will be a function pointer, which is then immediately applied to itself and the original argument 42. After the function definition we see closure creation. The closure variable has the \lstinlineb{_C} suffix and in our case consists only of a function pointer. The final expression is the closure variable.
 
 \section{\label{section:hoist}Hoisting}
 After our functions have been closure converted we can hoist all function definitions to the top level. This will transform our program into a single mutually recursive function definition with one expression. Hoisting is a non-local transformation: the entire expression tree is affected. The implementation of this function makes heavy use of recursion.

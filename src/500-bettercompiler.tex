@@ -13,7 +13,7 @@ data Tree sig a where
 \end{lstlisting}
 
 \section{\label{section:syncomtree}Syntactic CPS commands}
-The set of syntactic \ac{CPS} commands does not longer require the commands related to compilation. These commands are given a syntactic representation within the tree. Therefore, our set of commands will match the original \ac{CPS} commands almost completely. With the exception of the \lstinlineb{DONE} expression.
+The set of syntactic \ac{CPS} commands does no longer require the commands related to compilation. These commands are given a syntactic representation within the tree. Therefore, our set of commands will match the original \ac{CPS} commands almost completely. With the exception of the \lstinlineb{DONE} expression.
 
 \begin{lstlisting}[language=Haskell]
 type Sig = * -> * -> *
@@ -45,13 +45,13 @@ type Cmd = Fun :+: Kon
 %TODO more stuff about open unions...
 
 \section{\label{section:semtosyn}Transforming semantic command trees into syntactic command trees}
-The transformation called \lstinlineb{compile} from semantic command trees into syntactic command trees is performed using a special monad \lstinlineb{M}. It consists of a number that is used as a posfix for generating fresh variable names and an environment function that maps variables to values. Our \lstinlineb{compile} function will be written in monadic style. We will pattern match on each of the semantic commands to tranform them. We can divide these transformations into eliminations and translations. The extra compile commands will be eliminated and the semantic \ac{CPS} commands will be translated into syntactic \ac{CPS} commands.
+The transformation from semantic command trees into syntactic command trees eliminates the extra 'compilation' commands from the command tree and instantiates name binding commands with generated variables. The transformation is called \lstinlineb{compile} and is performed using a special monad \lstinlineb{M}. The monad \lstinlineb{M} provides a number that is used as a posfix for generating fresh variable names and an environment function that maps variables to values. Our \lstinlineb{compile} function will be written in monadic style. We will pattern match on each of the semantic commands to tranform them.
 
 \begin{lstlisting}[language=Haskell]
 newtype M a = M { runM :: Int -> (Var -> Val) -> (Int, a) }
 \end{lstlisting}
 
-We will take a look at transforming the \lstinlineb{Fresh} variable command and the \lstinlineb{Plus} command. The compilation of the \lstinlineb{Fresh} command seems trivial, because we use the helper function \lstinlineb{fresh}. This helper function should not be confused by the sugared version of the \lstinlineb{Fresh} command. This function updates the state integer of \lstinlineb{M} and returns fresh variable (in this case a string). The compilation of \lstinlineb{Plus} shows the instantiation of variables in the metalanguage with variables in the syntactic command trees. We generate a fresh variable, pass it to the continuation and compile the continuation, and finally plug the result into the syntactic command tree.
+We will take a look at transforming the semantic \lstinlineb{Fresh} variable command and the \lstinlineb{Plus} command into syntactic command trees. The compilation of the \lstinlineb{Fresh} command seems trivial, because we use the helper function \lstinlineb{fresh}. This helper function should not be confused by the sugared version of the \lstinlineb{Fresh} command. This function updates the state integer of \lstinlineb{M} and returns a fresh variable (in this case a string). The compilation of \lstinlineb{Plus} shows the instantiation of variables in the metalanguage with variables in the syntactic command trees. We generate a fresh variable, pass it to the continuation and compile the continuation, and finally plug the result into the syntactic command tree.
 
 \begin{lstlisting}[language=Haskell]
 comp :: S.Tree S.Cmd Val -> M (Tree Cmd Val)
@@ -70,6 +70,10 @@ comp (S.Node (S.Plus v1 v2) Nil (Some k)) = do
 % better, more...
 
 \section{\label{section:compcomtree}Compiling with command trees}
+We have introduced new constructs to improve our baseline compiler, which have changed the organization of our compiler. The improved LamToWat compiler has one additional step compared to its baseline version: transforming semantic command trees into syntactic command trees. The internal datatype used is changed from \ac{CPS} to a combination of semantic and syntactic command trees.
+
+% TODO insert compilation pipeline new
+
 We have claimed to solve the problem posed in section \ref{section:transcomtree}. The free defined variable function \lstinlineb{dv} can now be implemented without having to generate variables. We look at the case for addition and note that we only pattern match on the constructor of the sum type. This is because the four expressions in the \lstinlineb{Kon} datatype have the same behavior in the \lstinlineb{dv} function. Our pattern match is more elaborate than the one on the \ac{CPS} datatype, but in return this reveals more information about the expression.
 
 \begin{lstlisting}[language=Haskell]

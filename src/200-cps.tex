@@ -65,7 +65,7 @@ Our first program written in \ac{CPS} called \lstinlineb{program1} does the foll
 
 % TODO
 % cps self-interpreter
-As a second example of the power of \ac{CPS}, we will show that it can be used to define a self-interpreter for the lambda calculus\autocite{DBLP:journals/jfp/Mogensen92}. It is based on the ability to define datatypes and pattern matching on these datatypes using \ac{CPS}. Translation function $\overline{\cdot}$ of a datatype is defined as:
+As a second example of the power of \ac{CPS}, we will show that it can be used to define a self-interpreter for the lambda calculus\autocite{DBLP:journals/jfp/Mogensen92}. It is based on the ability to define datatypes and pattern matching on these datatypes using \ac{CPS}. The translation function $\overline{\cdot}$ of a datatype is defined as:
 
 \begin{equation*}
 \overline{S_i (t_1 \dots t_m)} \equiv \lambda x_1 \dots x_n . x_i \, \overline{t_1} \dots \overline{t_m}.
@@ -77,7 +77,7 @@ The translation of the pattern match on this datatype is then defined as:
 \overline{\lstinlineb{CASE} \, s \, \lstinlineb{OF} \, S_1 \to e_1 \dots S_n \to e_n} \equiv \overline{s} \, (\lambda t_{1_1} \dots t_{1_m} . \overline{e_1}) \dots (\lambda t_{n_1} \dots t_{n_m} . \overline{e_n}).
 \end{equation*}
 
-We see that these translations use \ac{CPS} with a number of continuations equal to the number of constructorrs in a datatype. For our self-interpreter of the lambda calculus we will need three constructors: \lstinlineb{lam}, \lstinlineb{app}, and \lstinlineb{var}. Using our definitions we obtain:
+We see that these translations use \ac{CPS} with a number of continuations equal to the number of constructors in a datatype. For our self-interpreter of the lambda calculus we will need three constructors: \lstinlineb{lam}, \lstinlineb{app}, and \lstinlineb{var}. Using our definitions we obtain:
 
 \begin{lstlisting}[language=Haskell]
 lam = \ f   lam app var -> lam f
@@ -99,7 +99,7 @@ Note that we make recursive calls to the \lstinlineb{interp} function. This is n
 \ac{CPS} is easier to compile (and mostly harder to write) than direct style, because \ac{CPS} resembles \ac{asm}. After evaluating an expression we call a function with the result, storing it in the respective argument of that function. This is similar to storing results of operations in registers. Since we do not have to save return addresses, our function calls are like \lstinlineb{goto} or \lstinlineb{jmp} statements. This is precisely what makes writing code in \ac{CPS} hard: we need to give all intermediate results names and state the order of evaluation in more detail.
 
 % cps is a language that translates to well
-We do not want to write our programs in \ac{CPS}, but we do want the advantages of \ac{CPS} in our compiler. We can have the best of both worlds and translate our language to \ac{CPS}. This is often not trivial. However, the flexible nature of continuations and the higher-level representation of functions gives us the tools we need. This function will have the task of naming all intermediate values and making control flow explicit. It will not come as a surprise that such a \ac{CPS} conversion function will itself be written in \ac{CPS}.
+We do not want to write our programs in \ac{CPS}, but we do want the advantages of \ac{CPS} in our compiler. We can have the best of both worlds and translate our language to \ac{CPS}. This is often not trivial. However, the flexible nature of continuations and the higher-level representation of functions gives us the tools we need to tranlate almost any control flow contruct. \ac{CPS} conversion will have the task of naming all intermediate values and making control flow explicit. It will not come as a surprise that such a \ac{CPS} conversion function will itself be written in \ac{CPS}.
 
 % cps is not a writing language, but a rewriting language
 % - easy source to source
@@ -126,7 +126,7 @@ data Cexp
 \end{lstlisting}
 
 % explain cps datatype def
-The \ac{CPS} language consist of values and expressions. This separation makes sure that the rule of functions only calling values is enforced. All expressions have a built-in continuation, except \lstinlineb{APP} and \lstinlineb{DONE}. Our expression tree has six constructors. The \lstinlineb{FIX} constructor provides recursive function definitions. The \lstinlineb{APP} constructor is for function application. Addition is represented by the \lstinlineb{ADD} constructor and our only primitive. \lstinlineb{RECORD} and \lstinlineb{SELECT} provide the necessary operations to inject and project record data on the heap. The \lstinlineb{DONE} constructor is new and not used by \citeauthor{DBLP:books/daglib/0022396}. It helps us to define the conversion function from a source language to \ac{CPS}. It cheats our \ac{CPS} conventions, because it represents a return statement. We will need to make sure that it is only used in the final continuation returning the value of our program. There are three value constructors for variable names, numbers, and function variable names. Making the distinction between variable names and function variable names helps us with the compilation of functions. 
+The \ac{CPS} language consist of values and expressions. This separation makes sure that the rule of functions only calling values is enforced. All expressions have a built-in continuation, except \lstinlineb{APP} and \lstinlineb{DONE}. Our expression tree has six constructors. The \lstinlineb{FIX} constructor provides recursive function definitions. The \lstinlineb{APP} constructor is for function application. Addition is represented by the \lstinlineb{ADD} constructor and our only primitive. \lstinlineb{RECORD} and \lstinlineb{SELECT} provide the necessary operations to modify record data on the heap. The \lstinlineb{DONE} constructor is new and not used by \citeauthor{DBLP:books/daglib/0022396}. It helps us to define the conversion function from a source language to \ac{CPS}. It cheats our \ac{CPS} conventions, because it represents a return statement. We will need to make sure that it is only used in the final continuation returning the value of our program. There are three value constructors for variable names, numbers, and function variable names. Making the distinction between variable names and function variable names helps us with the compilation of functions. 
 
 % cps is untyped...
 The absence of restrictions on variable names makes the \ac{CPS} datatype untyped. We can put a variable that represents an integer in function position of an application and the datatype would not complain. Undefined variable names can even be put in any value position. Being untyped makes it easy to manipulate the datatype, but also comes with more ways to go wrong. It is a double edged property. We can check if a \ac{CPS} program is well-typed by writing a function that traverses its expression tree while looking at the types of variable names and maintaining a list of their types. This would be an algorithmic implementation of a type system, called a type checker.
