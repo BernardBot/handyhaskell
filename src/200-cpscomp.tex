@@ -1,0 +1,82 @@
+% !TEX root = document.tex
+
+\chapter{\label{chap:cpscomp}Compiling With Continuations}
+In this chapter we will describe the LamToWat compiler that translates the lambda calculus into WebAssembly. Our compiler language will be written in Haskell. We follow a minimal version of the approach by \citeauthor{DBLP:books/daglib/0022396}. Consequently, \ac{CPS} will be the \ac{IR}. The purpose of building the LamToWat compiler is to examine and then improve its \ac{IR}. Although we are not concerned with the peripherals of the compiler, an \ac{IR} is not used in a vacuum. We want to examine the compiler steps that map to and from the \ac{IR} as well as the ones that map to the \ac{IR} itself. If we can improve upon the already favorable features of \ac{CPS}, we are creating a better IR to program in.
+
+\ac{CPS} makes control flow and data flow explicit. These features nicely represent the objective of a compiler. The process of translating from a high-level to a low-level language can be viewed as describing abstractions in finer detail. \ac{CPS} uses continuations to describe more complex control flow constructs. Continuations are more abstract than the \icode{label} and \icode{jump} instruction pair found in assembly language. This becomes essential when translating language with first-class functions.
+
+LamToWat is a multipass compiler. This means that multiple passes over the \ac{IR} will be made, each transforming a part of the representation. The complete compiler comprises these \ac{IR} transformations with additional passes to read in source files and print the resulting \ac{WA}.
+
+% TODO: (better) multipass diagram here
+
+The LamToWat compiler is split into a front-end and a back-end. The front-end of the compiler is made up of lexing, parsing, and \ac{CPS} conversion. We will not discuss lexing and parsing in detail, as it is irrelevant to the research in this thesis. We use \lstinlineb{Alex}\autocite{haskellalex} and \lstinlineb{Happy}\autocite{haskellhappy} to generate both a lexer and a parser for our compiler, respectively. The lexer converts source files into tokens and the parser in turn converts these tokens into an \ac{AST}. The back-end of the LamToWat compiler consist of three transformations on the \ac{IR}: closure conversion, hoisting, and emitting.
+
+This chapter will firsts describe the datatypes used in the LamToWat compiler with extra attention to the \ac{CPS} \ac{IR}. Then we will follow the organization of the compiler and discuss the relevant compiler passes over these datatypes in order.
+
+The datatypes of the LamToWat compiler will be implemented as Haskell datatypes. Haskell data types are indicated with the \icode{data} keyword. Every datatype has a name, which comes after the keyword. Then a number of constructors follows separated by vertical bars. Datatypes can be recursively defined. Type aliases indicated with the \icode{type} keyword are also used; providing new names for already declared datatypes.
+
+
+\begin{lstlisting}[language=Haskell]
+type Var = String
+
+data Exp
+  = Abs Var Exp
+  | App Exp Exp
+  | Var Var
+  | Num Int
+  | Add Exp Exp
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell]
+type Var = String
+
+data Val
+  = VAR Var
+  | NUM Int
+  | LABEL Var
+
+type Fun = (Var, [Var], Cexp)
+data Cexp
+  = FIX [Fun] Cexp
+  | APP Val [Val]
+  | ADD Val Val Var Cexp
+  | RECORD [Val] Var Cexp
+  | SELECT Int Val Var Cexp
+  | DONE Val
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell]
+type Size = Int
+type Offset = Int
+type Var = String
+
+data GlobalType = Mut Wtype | Immut Wtype
+data Wtype = I32
+
+data Wmodule = Wmodule [Wtexp]
+
+data Wtexp
+  = Func Var [(Var, Wtype)] Wtype [(Var, Wtype)] [Wexp]
+  | TypeDef Var [Wtype] Wtype
+  | GlobalDef Var GlobalType Wexp
+  | Memory Size
+  | Table Size
+  | Elem Wexp [Var]
+  | Export Var Var
+
+data Wexp
+  = I32_Const Int
+  | Return Wexp
+  | LocalGet Var
+  | LocalSet Var Wexp
+  | GlobalGet Var
+  | GlobalSet Var Wexp
+  | Type Var
+  | Call_Indirect Wexp Wexp [Wexp]
+  | Return_Call_Indirect Wexp Wexp [Wexp]
+  | Primop Wop [Wexp]
+  | Load Offset Wexp
+  | Store Offset Wexp Wexp
+
+data Wop = PLUS
+\end{lstlisting}
