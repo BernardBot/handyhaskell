@@ -18,11 +18,11 @@ def add_cps(a, b, k):
 \end{lstlisting}
 
 % explain example
-The basic differences between \ac{CPS} and direct style are shown by two addition functions. The first one is written in direct style and the other in \ac{CPS}. The differences are visible immediately: there is an extra argument \lstinlineb{k} and it replaces the \lstinlineb{return} in the function body. The \lstinlineb{+} operator is not written in \ac{CPS}. These kinds of operation are called primitives and are excluded from the \ac{CPS} conventions we described. Therefore, our rule of only applying functions to values does not have to be enforced. Other primitives include: all arithmetical operators, side effects, and bitwise operators.
+The basic differences between \ac{CPS} and direct style are shown by two addition functions. The first one is written in direct style and the other in \ac{CPS}. The differences are visible immediately: there is an extra argument \lstinlineb{k} and it replaces the \lstinlineb{return} in the function body. The \lstinlineb{+} operator is not written in \ac{CPS}. These kinds of operations are called primitives and are excluded from the \ac{CPS} conventions we described. Therefore, our rule of only applying functions to values does not have to be enforced. Other primitives include: all arithmetical operators, side effects, and bitwise operators.
 
 % NOT FINAL
 % introduce sections
-We will show how to translate a controlf flow construct in \ac{CPS} in section \ref{section:dcflow}. Then in section \ref{section:cwc} we will elaborate on the use of \ac{CPS} as compilation paradigm.
+We will show how to translate a control flow construct in \ac{CPS} in section \ref{section:dcflow}. Then in section \ref{section:cwc} we will elaborate on the use of \ac{CPS} as compilation paradigm.
 % Finally, in section \ref{section:cpstype} we will discuss the types of \ac{CPS} and \ac{CPS} translations.
 
 \section{\label{section:dcflow}Describing control flow}

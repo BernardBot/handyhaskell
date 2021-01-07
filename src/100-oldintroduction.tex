@@ -1,0 +1,38 @@
+% !TEX root = document.tex
+
+\chapter{\label{chap:introduction}Introduction}
+
+% CPS is
+% - a method of compilation
+% - flexible
+% - lambda calculus minus
+% - an intermediate representation
+CPS is a time-tested paradigm for functional compilation\autocite{steele1978rabbit, DBLP:books/daglib/0022396}. It bridges the gap between high-level programming languages and (abstract) machine code. Although \ac{CPS} is mostly used for compiling functional languages, it is flexible enough to compile imperative languages. \ac{CPS} is a style of programming, but can also be seen as a language in itself. More specifically, a restricted form of the lambda calculus\autocite{barendregt1984lambda}. This fact gives it a solid theoretical foundation.
+
+% IR needs to
+% - represent memory
+% - represent control flow
+% these are already satisfied by CPS, we add
+% - declarativity (front-end)
+% - confidence / restriction
+
+% TODO: Command Trees
+The language that is used by a compiler to represent source code is called an \ac{IR}. This is the data structure that a compiler writer will use to implement optimizations and translations. It will need to fulfill some requirements in order to make compilation possible and pleasant. A basic requirement for an \ac{IR} is to be able to model memory and control flow\autocite{bruin2020framevm}. These requirements are already met by \ac{CPS} with record structures and continuations, respectively. In this thesis we want to improve on this baseline with command trees\autocite{commandtreespoulsen}. Our command tree based \ac{IR} will have a declarative front-end and some intrinsic types. The goal of these new properties is to help programmers that are translating to the \ac{IR} and programmers writing the transformations of the \ac{IR} itself.
+
+% Our compiler
+% - lambda -> WA
+% - has front-end / back-end
+% - multiple passes
+% - Haskell
+To validate the usefulness of the changes to our \ac{IR} we will build a small compiler in Haskell\autocite{haskellhomepage} for \ac{WA}\autocite{webassemblyhomepage}. Our source language will be the call-by-value untyped lambda calculus with numbers and addition. Even though the lambda calculus is a very simple functional programming language, it has sufficient abstraction to necessitate compilation. The first-class functions of the lambda calculus will need to be translated to the second-class functions of \ac{WA}. The compiler will have multiple smaller translation steps and multiple passes over the \ac{IR}. The translation from lambda calculus to our \ac{IR} and the elimination of first-class functions will demonstrate the convenience of the \ac{IR}.
+
+% The contributions of this thesis are
+% - a compiler from the lambda calculus to webassembly
+% - multiple version of the IR
+% - analysis...
+The contributions of this thesis are the following:
+\begin{itemize}
+\item A WebAssembly compiler for the lambda calculus employing CPS.
+\item An improved WebAssembly compiler for the lambda calculus employing CPS and command trees.
+\item An analysis of \ac{IR} requirements.
+\end{itemize}
