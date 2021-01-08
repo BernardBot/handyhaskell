@@ -1,9 +1,189 @@
 % !TEX root = document.tex
 
-\chapter{\label{chap:treecomp}Compiling With Command Trees}
+\chapter{\label{chap:treecomp}Compiling with Command Trees}
 \section{\label{section:commandtree}Command Trees}
-\section{\label{section:treetransforms}Tree Transformations}
+\subsection{\label{subsection:semantree}Semantic Command Trees}
+\begin{lstlisting}[language=Haskell]
+data Tree sig a where
+  Leaf :: a -> Tree sig a
+  Node :: sig n b p r q ->
+          Vec n (p -> Tree sig r) ->
+          Option b (q -> Tree sig a) ->
+          Tree sig a
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell]
+type Sig :: Nat -> Bool -> * -> * -> * -> *
+
+data Cmd :: Sig where
+  -- cps commands
+  Fix    :: Vec n (Var, [Var]) -> Cmd n       'True  ()    Val   ()
+  App    :: Val -> [Val] ->       Cmd 'Z      'False Void  Void  Val 
+  Plus   :: Val -> Val ->         Cmd 'Z      'True  Void  Void  Val
+  Record :: [Val] ->              Cmd 'Z      'True  Void  Void  Val
+  Select :: Int -> Val ->         Cmd 'Z      'True  Void  Void  Val
+  -- extra compilation commands
+  Get    :: Var ->                Cmd 'Z      'True  Void  Void  Val
+  Put    :: Var -> Val ->         Cmd 'Z      'True  Void  Void  ()
+  Block  ::                       Cmd ('S 'Z) 'True  ()    Val   Val
+  Fresh  :: Var ->                Cmd 'Z      'True  Void  Void  Var
+\end{lstlisting}
+
+\subsection{\label{subsection:syntree}Syntactic Command Trees}
+
+\begin{lstlisting}[language=Haskell]
+data Tree sig a where
+  Leaf :: a -> Tree sig a
+  Node :: sig p r ->
+          [(p, Tree sig r)] ->
+          Maybe (Var, Tree sig a) ->
+          Tree sig a
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell]
+type Sig = * -> * -> *
+
+data Fun :: Sig where
+  Fix :: [(Var,[Var])] -> Fun () Val
+
+data Kon :: Sig where
+  App :: Val -> [Val] ->  Kon Void Void
+  Plus :: Val -> Val ->   Kon Void Void
+  Record :: [Val] ->      Kon Void Void
+  Select :: Int -> Val -> Kon Void Void
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell]
+infixr 5 :+:
+data (:+:) :: Sig -> Sig -> Sig where
+  Inl :: sig1 p r -> (sig1 :+: sig2) p r
+  Inr :: sig2 p r -> (sig1 :+: sig2) p r
+
+type Cmd = Fun :+: Kon
+\end{lstlisting}
+
+\section{\label{section:treensforms}Treensformations}
 \subsection{\label{subsection:cpsconvert}CPS Conversion}
-\subsection{\label{section:closconvert}Closure Cconversion}
+\begin{lstlisting}[language=Haskell]
+denote :: Exp -> Tree Cmd Val
+denote (Var x) = return (VAR x)
+denote (Num i) = return (NUM i)
+denote (Abs x e) = do
+  f <- fresh ".f"
+  k <- fresh ".k"
+  fix ((f,[x,k],do
+           e <- denote e
+           app (VAR k) [e])
+       ::: Nil)
+  return (LABEL f)
+denote (App f a) = block (do
+  f <- denote f
+  a <- denote a
+  k <- get ".nxt"
+  app f [a,k])
+denote (Add a b) = do
+  a <- denote a
+  b <- denote b
+  plus a b
+\end{lstlisting}
+\subsection{\label{subsection:semtosyn}Tree Compilation}
+\begin{lstlisting}[language=Haskell]
+comp :: S.Tree S.Cmd Val -> M (Tree Cmd Val)
+comp (S.Leaf x) = return (Leaf x)
+comp (S.Node (S.Fresh x) Nil (Some k)) = do
+  x <- fresh x
+  comp (k x)
+comp (S.Node (S.Get x) Nil (Some k)) = do
+  x <- get x
+  comp (k x)
+comp (S.Node (S.Put x v) Nil (Some k)) = do
+  put x v (comp (k ()))
+comp (S.Node S.Block (k' ::: Nil) (Some k)) = do
+  x <- fresh ".x"
+  r <- fresh ".r"
+  nxt <- get ".nxt"
+  k <- comp (k (VAR x))
+  k' <- comp (do
+     S.put ".nxt" (LABEL r)
+     k' <- k' ()
+     S.put ".nxt" nxt
+     S.app (LABEL r) [k'])
+  return (Node (Inl (Fix [(r,[x])])) [((), k)] (Just ("_", k')))
+comp (S.Node (S.Fix fs)     ks  (Some k)) = do
+  ks <- mapM (\ k -> comp (k ())) ks
+  k <- comp (k ())
+  return (Node (Inl (Fix (toList fs))) (map ((),) (toList ks)) (Just ("_", k)))
+comp (S.Node (S.App v vs)   Nil None)     = do
+  return (Node (Inr (App v vs)) [] Nothing)
+comp (S.Node (S.Plus v1 v2) Nil (Some k)) = do
+  x <- fresh ".xl"
+  k <- comp (k (VAR x))
+  return (Node (Inr (Plus v1 v2)) [] (Just (x, k)))
+comp (S.Node (S.Record vs)  Nil (Some k)) = do
+  x <- fresh ".xl"
+  k <- comp (k (VAR x))
+  return (Node (Inr (Record vs)) [] (Just (x, k)))
+comp (S.Node (S.Select i v) Nil (Some k)) = do
+  x <- fresh ".xl"
+  k <- comp (k (VAR x))
+  return (Node (Inr (Select i v)) [] (Just (x, k)))
+\end{lstlisting}
+\subsection{\label{subsection:closconvert}Closure Conversion}
+\begin{lstlisting}[language=Haskell]
+closify e = go e
+  where go (Leaf v)                    = close [v]    $ Leaf (renameC v)
+        go (Node (Inr (App v vs)) _ _) = close (v:vs) $ (apply v) (map renameC vs)
+        go (Node (Inl (Fix fs)) ks (Just (_, k))) = do fix fxs; go k
+          where fxs = zipWith (\ (f,as) ((),b) ->
+                                 (f,envName:as,open (lookdvs f) 1 (go b))) fs ks
+
+        go (Node op@(Inr _) ks (Just (x, k))) = (Node op ks (Just (x, go k)))
+
+        dvs = dv e []
+        lookdvs f = fromJust $ lookup f dvs
+
+        closTag = "_C"
+        funcTag = "_F"
+        envName = ".env"
+
+        renameC (LABEL f) = VAR (f ++ closTag)
+        renameC v = v
+        
+        close [] k = k
+        close (LABEL f:vs) k = do
+          record (LABEL f : map VAR (lookdvs f)) (f ++ closTag)
+          close vs k
+        close (_:vs) k = close vs k
+
+        open [] i k = k
+        open (x:xs) i k = do
+          select i (VAR envName) x
+          open xs (i+1) k
+
+        apply (LABEL f) vs = app (LABEL f) (VAR (f ++ closTag):vs)
+        apply (VAR f) vs = do
+          let f_F = f ++ funcTag
+          select 0 (VAR f) f_F
+          app (VAR f_F) (VAR f:vs)
+\end{lstlisting}
 \subsection{\label{subsection:hoist}Hoisting}
-\subsection{\label{section:emit}Emitting}
+\begin{lstlisting}[language=Haskell]
+hoist :: Tree Cmd Val -> Tree Cmd Val
+hoist k@(Leaf x) = Node (Inl (Fix [])) [] (Just ("_", k))
+hoist k@(Node (Inr (App _ _)) [] Nothing) =
+  Node (Inl (Fix [])) [] (Just ("_", k))
+
+hoist (Node (Inl (Fix fs)) ks (Just ("_", k))) = case hoist k of
+  Node (Inl (Fix fs)) ks (Just (_, k)) ->
+    Node (Inl (Fix (fs'++fs))) ((map ((),) ks')++ks) (Just ("_", k))
+  where fs' :: [(Var,[Var])]
+        ks' :: [Tree Cmd Val]
+        (fs',ks') = unzip $ concatMap (\ ((f,as),b) -> case hoist b of
+                              Node (Inl (Fix fs)) ks (Just (_, k)) ->
+                                ((f,as),k) : zip fs (map snd ks))
+                                (zip fs (map snd ks))
+
+hoist (Node op@Inr{}  _ (Just (v,k))) = case hoist k of
+  Node (Inl (Fix fs)) ks (Just (_, k)) ->
+    Node (Inl (Fix fs)) ks (Just ("_", (Node op [] (Just (v,k)))))
+\end{lstlisting}
