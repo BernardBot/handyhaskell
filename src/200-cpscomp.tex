@@ -138,7 +138,7 @@ convert (Add a b) c = do
     return $ ADD a' b' x c'))
 \end{lstlisting}
 
-\ac{CPS} conversion will transform the \icode{Exp} data type into the \ac{Cexp} data type. By converting to \ac{CPS} we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and have an extra argument to our conversion function that indicates the order of expressions. Fresh variables are generated using a monad. We use Haskell's \icode{do}-notation to write our conversion function in an imperative style. The extra argument to our function is also called a metacontinuation: a continuation in the metalangauge.
+\ac{CPS} conversion will transform the \icode{Exp} data type into the \icode{Cexp} data type. By converting to \ac{CPS} we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and have an extra argument to our conversion function that indicates the order of expressions. Fresh variables are generated using a monad. We use Haskell's \icode{do}-notation to write our conversion function in an imperative style. The extra argument to our function is also called a metacontinuation: a continuation in the metalangauge.
 
 \icode{convert} is split up into cases for each constructor of \icode{Exp}. The values \icode{Var} and \icode{Num} are converted to \ac{CPS} values. To convert the anonymous function \icode{Abs} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the metacontinuation \icode{c}. Then we convert the body of the function \icode{e}, giving it a metacontinuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{FIX} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
 
@@ -154,6 +154,7 @@ We give an example of a call to the \ac{CPS} conversion function to see how it w
 
 \subsection{\label{section:closconvert}Closure Conversion}
 \begin{lstlisting}[language=Haskell]
+closify :: Cexp -> Cexp
 closify e = go e
   where go (RECORD vs x e)  = RECORD vs x (go e)
         go (SELECT i v x e) = SELECT i v x (go e)
@@ -166,7 +167,8 @@ closify e = go e
         goFunc (f,as,b)     = (f,envName:as,open (lookdvs f) (go b))
 
         close []           k = k
-        close (LABEL f:vs) k = RECORD (LABEL f : map VAR (lookdvs f)) (f ++ closTag) (close vs k)
+        close (LABEL f:vs) k =
+          RECORD (LABEL f : map VAR (lookdvs f)) (f ++ closTag) (close vs k)
         close (_:vs)       k = close vs k
 
         open xs k = foldr (\ (i,x) -> SELECT i (VAR envName) x) k (zip [1..] xs)
@@ -204,73 +206,32 @@ hoist (FIX fs e)       = case hoist e of FIX fs e -> FIX (fs'++fs) e
   where fs' = concatMap (\ (f,as,b) -> case hoist b of FIX fs e -> (f,as,e) : fs) fs
 \end{lstlisting}
 
-Hoisting transforms the \icode{Cexp} data type into the \icode{Cexp} data type with a single \icode{FIX}ed function definition. Hoisting is a non-local transformation: the entire expression tree is affected. \icode{hoist} makes heavy use of 
+Hoisting transforms the \icode{Cexp} data type into the \icode{Cexp} data type with a single \icode{FIX}ed function definition. Hoisting is a non-local transformation: the entire expression tree is affected. \icode{hoist} makes heavy use of recursion. The only interesting case is the one for \icode{FIX}. Here we hoist and concatenate the bodies of all functions. The final continuation \icode{e} is hoisted and appended to the new list of functions.
 
 \subsection{\label{section:emit}Emitting}
 \begin{lstlisting}[language=Haskell]
-emit :: Cexp -> Wmodule
-emit (FIX fs e) = Wmodule $
-  heapAlloc : 
-  heapPointerDef :
-  tableAlloc :
-  tableElem :
-  typeDefs ++
-  startFunc :
-  startExport :
-  funcDefs
-  where prefix = "."
+emitE :: Cexp -> [Wexp]
+emitE (RECORD vs x e) =
+  zipWith (\ v i -> Store i (GlobalGet heapPointer) (emitV v)) vs [0,intSize..] ++
+  LocalSet x (GlobalGet heapPointer) :
+  GlobalSet heapPointer (Primop PLUS [GlobalGet heapPointer, I32_Const (length vs * intSize)]) :
+  emitE e
+emitE (SELECT i v x e) =
+  LocalSet x (Load (i * intSize) (emitV v)) :
+  emitE e
+emitE (APP v vs) =
+  [ Return_Call_Indirect
+    (Type (typePrefix ++ show (length vs)))
+    (emitV v) (map emitV vs)]
+emitE (ADD v1 v2 x e) =
+  LocalSet x (Primop PLUS [emitV v1, emitV v2]) :
+  emitE e
+emitE (DONE v) = [emitV v]
 
-        heapSize = 1
-        heapPointer = prefix ++ "heap_pointer"
-        heapInitLoc = 0
-        heapAlloc = Memory heapSize
-        heapPointerDef = GlobalDef heapPointer (Mut I32) (I32_Const heapInitLoc)
-
-        tableSize = length fs
-        tableAlloc = Table tableSize
-        tableElem = Elem (I32_Const 0) fns
-        fns = map (\ (f,_,_) -> f) fs
-
-        typePrefix = prefix ++ "t"
-        typeDefs = map emitTypeDef fls
-        emitTypeDef n = TypeDef (typePrefix ++ show n) (replicate n I32) I32
-
-        fls = nub $ map (\ (_,as,_) -> length as) fs 
-        
-        startFuncName = prefix ++ "start"
-        startFunc = Func startFuncName [] I32 (mapi32 (lc e)) (emitE e)
-        startExport = Export startFuncName startFuncName
-        mapi32 = map (\ x -> (x,I32))
-        
-        funcDefs = map emitF fs
-        emitF (f,as,b) = Func f (mapi32 as) I32 (mapi32 (looklvs f)) (emitE b)
-
-        looklvs f = fromJust $ lookup f lvs
-
-        lvs = map (\ (f,as,b) -> (f,nub (lc b))) fs
-        
-        intSize = 4
-
-        emitE (RECORD vs x e) =
-          zipWith (\ v i -> Store i (GlobalGet heapPointer) (emitV v)) vs [0,intSize..] ++
-          LocalSet x (GlobalGet heapPointer) :
-          GlobalSet heapPointer (Primop PLUS [GlobalGet heapPointer, I32_Const (length vs * intSize)]) :
-          emitE e
-        emitE (SELECT i v x e) =
-          LocalSet x (Load (i * intSize) (emitV v)) :
-          emitE e
-        emitE (APP v vs) =
-          [ Return_Call_Indirect
-            (Type (typePrefix ++ show (length vs)))
-            (emitV v) (map emitV vs)]
-        emitE (ADD v1 v2 x e) =
-          LocalSet x (Primop PLUS [emitV v1, emitV v2]) :
-          emitE e
-        emitE (DONE v) = [emitV v]
-
-        emitV (NUM i) = I32_Const i
-        emitV (VAR x) = LocalGet x
-        emitV (LABEL f) = I32_Const $ fromJust $ f `elemIndex` fns
+emitV :: Val -> Wexp
+emitV (NUM i) = I32_Const i
+emitV (VAR x) = LocalGet x
+emitV (LABEL f) = I32_Const $ fromJust $ f `elemIndex` fns
 \end{lstlisting}
 
-Emitting transforms the \icode{Cexp} data type into the \icode{Wmodule} data type.
+Emitting transforms the \icode{Cexp} data type into the \icode{Wmodule} data type. Here we only show the transformation of the function body \icode{emitE} and the transformation of values for brevity. Note that the case for \icode{FIX} is missing, because our entire \icode{Cexp} is a single \icode{FIX}. The case for \icode{RECORD} shows how persistent memory is implemented using a global \icode{heapPointer}. When we encounter a \icode{RECORD} we assign its elements \icode{vs} to the location of the \icode{heapPointer} with an evenly spaced offset of \icode{intSize}. Then we assign the \icode{heapPointer} to our record name and increase the \icode{heapPointer} to point the location after the record. The case for \icode{APP}lication shows that we need too use a \icode{Type} when calling a function indirectly. \icode{LABEL}s are the only \icode{Val}ue that has an interesting tranformation. It is translated to a 32-bit integer index by looking up that index in a list of functions \icode{fns}.
