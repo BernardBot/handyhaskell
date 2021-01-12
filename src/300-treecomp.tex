@@ -1,6 +1,19 @@
 % !TEX root = document.tex
 
 \chapter{\label{chap:treecomp}Compiling with Command Trees}
+The version of the LamToWat compiler described in the previous section has two major flaws that hinder compiler writers:
+
+\begin{itemize}
+\item \ac{CPS} conversion is hard to write,
+\item \ac{IR} transformations are untyped.
+\end{itemize}
+
+In this chapter we propose two data types called semantic and syntactic command trees to solve these two shortcomings.
+
+We elaborate on the two compiler flaws. A programmer needs to have a decent understanding of \ac{CPS} to implement the \ac{CPS} conversion. This is because the \ac{CPS} conversion function itself is written in \ac{CPS}. LamToWat uses a (meta)continuation to specify control flow. We would like a programmer that just wants to implement a language to not have to worry about the inner workings of the \ac{IR}. We need an extra layer of abstraction that makes it easy to write: first convert this expression, then convert that expression, then return a final expression. We want the flexibility of continuations without having to deal with their complexity directly.
+
+The transformation in the back-end of the LamToWat compiler change the structure and properties of the \ac{IR}. The \icode{Cexp} data type gives no indication of these changes. A programmer that is implementing a compiler would like some assurance that the transformations she has specified guarantee those properties.
+
 \section{\label{section:commandtree}Command Trees}
 \subsection{\label{subsection:semantree}Semantic Command Trees}
 \begin{lstlisting}[language=Haskell]

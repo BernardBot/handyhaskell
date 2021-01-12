@@ -138,7 +138,7 @@ convert (Add a b) c = do
     return $ ADD a' b' x c'))
 \end{lstlisting}
 
-\ac{CPS} conversion will transform the \icode{Exp} data type into the \icode{Cexp} data type. By converting to \ac{CPS} we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and have an extra argument to our conversion function that indicates the order of expressions. Fresh variables are generated using a monad. We use Haskell's \icode{do}-notation to write our conversion function in an imperative style. The extra argument to our function is also called a metacontinuation: a continuation in the metalangauge.
+\ac{CPS} conversion will transform the \icode{Exp} data type into the \icode{Cexp} data type. By converting to \ac{CPS} we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and have an extra argument to our conversion function that indicates the order of expressions. Fresh variables are generated using a monad. We use Haskell's \icode{do}-notation to write our monadic conversion function in an imperative style. The extra argument to our function is also called a metacontinuation: a continuation in the metalangauge.
 
 \icode{convert} is split up into cases for each constructor of \icode{Exp}. The values \icode{Var} and \icode{Num} are converted to \ac{CPS} values. To convert the anonymous function \icode{Abs} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the metacontinuation \icode{c}. Then we convert the body of the function \icode{e}, giving it a metacontinuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{FIX} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
 
@@ -208,6 +208,24 @@ hoist (FIX fs e)       = case hoist e of FIX fs e -> FIX (fs'++fs) e
 
 Hoisting transforms the \icode{Cexp} data type into the \icode{Cexp} data type with a single \icode{FIX}ed function definition. Hoisting is a non-local transformation: the entire expression tree is affected. \icode{hoist} makes heavy use of recursion. The only interesting case is the one for \icode{FIX}. Here we hoist and concatenate the bodies of all functions. The final continuation \icode{e} is hoisted and appended to the new list of functions.
 
+\begin{lstlisting}[language=Haskell]
+> hoist $ closify $ cpsify (Abs "x" (Abs "y" (Num 42)))
+
+def .f0(.env,x,.k1):
+  .f2_C <- [_.f2,x,.k1]
+  .k1_F <- .k1 !! 0
+  .k1_F(.k1,.f2_C)
+def .f2(.env,y,.k3):
+  x <- .env !! 1
+  .k1 <- .env !! 2
+  .k3_F <- .k3 !! 0
+  .k3_F(.k3,42)
+.f0_C <- [_.f0]
+.f0_C
+\end{lstlisting}
+
+The example shows a nested function to exhibit that all functions will be defined at the top level after hoisting. The abstraction for \icode{x} and \icode{y} have individual functions \icode{.f0} and \icode{.f2}.
+
 \subsection{\label{section:emit}Emitting}
 \begin{lstlisting}[language=Haskell]
 emitE :: Cexp -> [Wexp]
@@ -234,4 +252,32 @@ emitV (VAR x) = LocalGet x
 emitV (LABEL f) = I32_Const $ fromJust $ f `elemIndex` fns
 \end{lstlisting}
 
-Emitting transforms the \icode{Cexp} data type into the \icode{Wmodule} data type. Here we only show the transformation of the function body \icode{emitE} and the transformation of values for brevity. Note that the case for \icode{FIX} is missing, because our entire \icode{Cexp} is a single \icode{FIX}. The case for \icode{RECORD} shows how persistent memory is implemented using a global \icode{heapPointer}. When we encounter a \icode{RECORD} we assign its elements \icode{vs} to the location of the \icode{heapPointer} with an evenly spaced offset of \icode{intSize}. Then we assign the \icode{heapPointer} to our record name and increase the \icode{heapPointer} to point the location after the record. The case for \icode{APP}lication shows that we need too use a \icode{Type} when calling a function indirectly. \icode{LABEL}s are the only \icode{Val}ue that has an interesting tranformation. It is translated to a 32-bit integer index by looking up that index in a list of functions \icode{fns}.
+Emitting transforms the \icode{Cexp} data type into the \icode{Wmodule} data type. Here we only show the transformation of the function body \icode{emitE} and the transformation of values \icode{emitV} for brevity. Note that the case for \icode{FIX} is missing, because our entire \icode{Cexp} is a single \icode{FIX}. The case for \icode{RECORD} shows how persistent memory is implemented using a global \icode{heapPointer}. When we encounter a \icode{RECORD} we assign its elements \icode{vs} to the location of the \icode{heapPointer} with an evenly spaced offset of \icode{intSize}. Then we assign the \icode{heapPointer} to our record name and increase the \icode{heapPointer} to point the location after the record. The case for \icode{APP}lication shows that we need too use a \icode{Type} when calling a function indirectly. \icode{LABEL}s are the only \icode{Val}ue that has an interesting tranformation. It is translated to a 32-bit integer index by looking up that index in a list of functions \icode{fns}.
+
+\begin{lstlisting}[language=Haskell]
+> emit $ hoist $ closify $ cpsify (Abs "x" (Num 42))
+
+(module  
+  (memory 1)
+  (global $.heap_pointer (mut i32) (i32.const 0))
+  (table 1 funcref)
+  (elem (i32.const 0) $.f0)
+  (type $.t3 (func (param i32) (param i32) (param i32) (result i32)))
+
+  (func $.start (result i32) (local $.f0_C i32)  
+    (i32.store offset=0 (global.get $.heap_pointer) (i32.const 0))
+    (local.set $.f0_C (global.get $.heap_pointer))
+    (global.set $.heap_pointer (i32.add (global.get $.heap_pointer) (i32.const 4)))
+    (local.get $.f0_C)
+  )
+
+  (export ".start" (func $.start))
+
+  (func $.f0 (param $.env i32) (param $x i32) (param $.k1 i32) (result i32) (local $.k1_F i32)  
+    (local.set $.k1_F (i32.load offset=0 (local.get $.k1)))
+    (return_call_indirect (type $.t2) (local.get $.k1) (i32.const 42) (local.get $.k1_F))
+  )
+)
+\end{lstlisting}
+
+The example shows the final product of LamToWat. The \ac{WA} \icode{module} first declares global \icode{memory} and a global \icode{$.heap_pointer}. A \icode{table} with function types is made. In our case it only has one type that is never used, because no abstraction is applied. The \icode{$.start} function is the entry point of our program and made accessible by an \icode{export} statement. The actual function we have translated is the last statement.
