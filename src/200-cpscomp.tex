@@ -7,9 +7,10 @@ What makes \ac{CPS} favorable as an \ac{IR} is that it makes control flow and da
 
 LamToWat is a multipass compiler. This means that multiple passes over the \ac{IR} will be made, each transforming a part of the representation. The complete compiler comprises these \ac{IR} transformations with additional passes to read in source files and print the resulting \ac{WA}.
 
-\begin{equation*}
-  String \xto{lexify} Token \xto{parsify} Exp \xto{cpsify} Cexp \xto{closify} Cexp \xto{hoist} Cexp \xto{emit} Wmodule \xto{show} String
-\end{equation*}
+\begin{gather*}
+  String \xto{lexify} Token \xto{parsify} Exp \xto{cpsify}\\
+  Cexp \xto{closify} Cexp \xto{hoist} Cexp \xto{emit} Wmodule \xto{show} String
+\end{gather*}
 
 LamToWat is split into a front-end and a back-end. The front-end of the compiler is made up of lexing, parsing, and \ac{CPS} conversion. We will not discuss lexing and parsing in detail, as it is irrelevant to the research in this thesis. We use \icode{Alex}\autocite{haskellalex} and \icode{Happy}\autocite{haskellhappy} to generate both a lexer and a parser for our compiler, respectively. The lexer converts source files into tokens and the parser in turn converts these tokens into an \ac{AST}. The back-end of LamToWat consist of three transformations on the \ac{IR}: closure conversion, hoisting, and emitting.
 
@@ -159,11 +160,9 @@ closify e = go e
   where go (RECORD vs x e)  = RECORD vs x (go e)
         go (SELECT i v x e) = SELECT i v x (go e)
         go (ADD v1 v2 x e)  = ADD v1 v2 x (go e)
-
         go (DONE v)         = close [v] $ DONE (renameC v)
         go (APP v vs)       = close (v:vs) $ (apply v) (map renameC vs)
         go (FIX fs e)       = FIX (map goFunc fs) (go e)
-
         goFunc (f,as,b)     = (f,envName:as,open (lookdvs f) (go b))
 
         close []           k = k
@@ -263,21 +262,17 @@ Emitting transforms the \icode{Cexp} data type into the \icode{Wmodule} data typ
   (table 1 funcref)
   (elem (i32.const 0) $.f0)
   (type $.t3 (func (param i32) (param i32) (param i32) (result i32)))
-
   (func $.start (result i32) (local $.f0_C i32)  
     (i32.store offset=0 (global.get $.heap_pointer) (i32.const 0))
     (local.set $.f0_C (global.get $.heap_pointer))
     (global.set $.heap_pointer (i32.add (global.get $.heap_pointer) (i32.const 4)))
-    (local.get $.f0_C)
-  )
+    (local.get $.f0_C))
 
   (export ".start" (func $.start))
 
   (func $.f0 (param $.env i32) (param $x i32) (param $.k1 i32) (result i32) (local $.k1_F i32)  
     (local.set $.k1_F (i32.load offset=0 (local.get $.k1)))
-    (return_call_indirect (type $.t2) (local.get $.k1) (i32.const 42) (local.get $.k1_F))
-  )
-)
+    (return_call_indirect (type $.t2) (local.get $.k1) (i32.const 42) (local.get $.k1_F))))
 \end{lstlisting}
 
 The example shows the final product of LamToWat. The \ac{WA} \icode{module} first declares global \icode{memory} and a global \icode{$.heap_pointer}. A \icode{table} with function types is made. In our case it only has one type that is never used, because no abstraction is applied. The \icode{$.start} function is the entry point of our program and made accessible by an \icode{export} statement. The actual function we have translated is the last statement.
