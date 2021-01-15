@@ -8,7 +8,7 @@ The version of the LamToWat compiler described in the previous section has two m
 \item \ac{IR} transformations are untyped.
 \end{itemize}
 
-In this chapter we propose two data types called semantic and syntactic command trees to solve these two shortcomings, respectively. They will replace the original \ac{CPS} \ac{IR}. A large part of LamToWat does not change: lexing, parsing, and printing of \ac{WA} code remains the same. The new compiler is structured as follows.
+In this chapter we propose two data types called semantic and syntactic command trees to alleviate these two shortcomings, respectively. They will replace the original \ac{CPS} \ac{IR}. A large part of LamToWat does not change: lexing, parsing, and printing of \ac{WA} code remains the same. The new compiler is structured as follows.
 
 \begin{gather*}
   String \xto{lexify} Token \xto{parsify} Exp \xto{cpsify}\\
@@ -22,7 +22,7 @@ The transformations in the back-end of the LamToWat compiler change the structur
 \section{\label{section:commandtree}Command Trees}
 Command trees are a data type used to sequence commands. A well known data type that is also capable of sequencing is a list. Command trees improve upon lists by adding types that restrict its structure, and by providing the ability to use the result of one command in the commands after that. Just like lists, command trees are monads. This allows us to bind command trees together easily and write functions using \icode{do}-notation. Commands themselves are a syntactic representations of a monadic computations. In simpler terms this can be described as the meaning of a command is something that is left to the programmer. What a command does is implemented later in a function sometimes called a handler.
 
-Command trees are implemented using Haskell \acp{GADT}. A \ac{GADT} gives us the power to add more types to our \ac{IR}. A \ac{GADT} has a somewhat different notation than a normal data type. After the \icode{data} keyword we specify a name and type parameters, a \icode{where} keyword follows. Then the different constructors of the \ac{GADT} are declared. The constructors are given a name followed by \icode{::}. The types of the arguments follow, separated by \icode{->}. Finally, we declare the constructor with its type parameters, which can relate to the types of the arguments.
+Command trees are implemented using Haskell \acp{GADT}. A \ac{GADT} gives us the power to add more types to our \ac{IR}. The notatino of a \ac{GADT} is somewhat different than the notation of a normal data type. After the \icode{data} keyword we specify a name and type parameters, a \icode{where} keyword follows. Then the different constructors of the \ac{GADT} are declared. The constructors are given a name followed by \icode{::}. The types of the arguments follow, separated by \icode{->}. Finally, we declare the constructor with its type parameters, which can relate to the types of the arguments.
 
 \subsection{\label{subsection:semantree}Semantic Command Trees}
 \begin{lstlisting}[language=Haskell]
@@ -58,7 +58,7 @@ A signature instance \icode{sig n b p r q} tells us the following things:
 \item The argument type \icode{q} of the continuation.
 \end{itemize}
 
-Without commands we can not do anything with our command trees. We will use a set of commands that reflect the constructors from the \ac{CPS} datatype. We also define a number of extra commands that will help us compile. This progamifying or treeifying of a command or request is called lifting. This is called so because we 'lift' the expression into the monad.
+Without commands we can not do anything with our command trees. We will use a set of commands that reflect the constructors from the \ac{CPS} datatype. We also define a number of extra commands that will help us compile. This progammifying or treeifying of a command or request is called lifting. This is called so because we 'lift' the expression into the monad.
 
 \begin{lstlisting}[language=Haskell]
 data Cmd :: Sig where
@@ -77,7 +77,7 @@ data Cmd :: Sig where
 
 We can see that almost all our original constructors from the \ac{CPS} data type are here. Except the \icode{DONE} constructor will be modeled by the \icode{Leaf} constructor of the semantic command tree. The \icode{Var} and \icode{Val} type are the same as in \ac{CPS}. Our four extra commands represent mutable state, command concatenation, and fresh variable name generation.
 
-We take a look at the signatures of the commands to see how they are structured. The \icode{Block} and \icode{Fix} command are the only ones that have subcontinuations. The \icode{Void} indicate that there is no subcontinuation. \icode{Fix} has a subcontinuation for every function definition. This is required by the constructor itself as the natural number \icode{n} appears in both the function name with arguments and subcontinuations. The \icode{App} command does not have a continuation, which will lead to some trouble when trying to concatenate it with other commands. The return type of commands indicates that commands will bind to a variable \icode{Val}, or only produce a side-effect \icode{()}.
+We take a look at the signatures of the commands to see how they are structured. The \icode{Block} and \icode{Fix} command are the only ones that have subcontinuations. The \icode{Void} type indicates that there is no subcontinuation. \icode{Fix} has a subcontinuation for every function definition. This is required by the constructor itself as the natural number \icode{n} appears in both the function name with arguments and subcontinuations. The \icode{App} command does not have a continuation, which will lead to some trouble when trying to concatenate it with other commands. The return type of commands indicates that commands will bind to a variable \icode{Val}, or only produce a side-effect \icode{()}.
 
 \subsection{\label{subsection:syntree}Syntactic Command Trees}
 After we have performed our \ac{CPS} conversion our code lives inside a semantic command tree. The following transformations will have to be performed on the semantic command tree. The abstract nature of semantic command trees prevents us from defining these transformations without escaping from its abstraction. The fundamental problem is that continuations are defined as functions in the metalanguage instead of syntactic constructs in the \ac{IR} itself.
@@ -126,10 +126,10 @@ data (:+:) :: Sig -> Sig -> Sig where
 type Cmd = Fun :+: Kon
 \end{lstlisting}
 
-We will combine \icode{Fun} and \icode{Kon} using an open union or sum data type. An open union can be viewed as a list of data types. More precisely, it is a binary tree which has datatypes as leaf nodes. \icode{:+:} is right-associative and has two constructors \icode{Inl} and \icode{Inr}, which inject a datatype with two type variables into the left or right side of the tree, respectively. Note that we can nest instances of open unions to create open unions. In order to extract a data type from an open union we simply pattern match on the two constructors. Our new \icode{Cmd} will have \icode{Fun} in its right subtree and \icode{Kon} in its left subtree.
+We will combine \icode{Fun} and \icode{Kon} using an open union or sum data type. An open union can be viewed as a list of data types. More precisely, it is a binary tree which has datatypes as leaf nodes. \icode{:+:} is right-associative and has two constructors \icode{Inl} and \icode{Inr}, which inject a datatype with two type variables into the left or right side of the tree, respectively. Note that we can nest instances of open unions to create open unions. In order to extract a data type from an open union we simply pattern match on the two constructors. Our new \icode{Cmd} will have \icode{Kon} in its left subtree and \icode{Fun} in its right subtree.
 
 \section{\label{section:treensforms}Treensformations}
-Transformations will be implemented as Haskell functions. Since command trees are monads, we will program mostly in the monad using \icode{do}-notation. We define helper functions to remove boilerplate and make the transformations more readable, e.g., \icode{plus}, \icode{app}, etc. These are simple sugar that lift expressions into command trees. For example, the \icode{Plus} command has sugared version \icode{plus}.
+Transformations for the new version of LamToWat will be implemented as Haskell functions. Since command trees are monads, we will program mostly in the monad using \icode{do}-notation. We use helper functions to remove boilerplate and make the transformations more readable, e.g., \icode{plus}, \icode{app}, etc. These are simple sugar that lift expressions into command trees. For example, the \icode{Plus} command has sugared version \icode{plus}.
 
 \begin{lstlisting}[language=Haskell]
 plus :: Val -> Val -> Tree Cmd Val
@@ -160,9 +160,11 @@ denote (Add a b) = do
   plus a b
 \end{lstlisting}
 
-Using the \ac{CPS} commands, we can define an improved \ac{CPS} conversion. The function is easier to read and write. We no longer have a metacontinuation argument. This simplifies the notation significantly. We still operate in a monad, however, this monad is the semantic command tree, not the state monad. The order of our listed operations matches the order of our final program more closely. There are some details that spoil the declarativity of our conversion somewhat. The advantages and disadvantages of our new approach become clear when we examine the conversion of an abstraction in comparison to the one listed in section \ref{section:cpsconvert}. We use the sweet version of our commands.
+Using the \ac{CPS} commands, we can define an improved \ac{CPS} conversion. The function is easier to read and write. We no longer have a metacontinuation argument. This simplifies the notation significantly. We still operate in a monad, however, this monad is the semantic command tree, not the state monad. The order of our listed operations matches the order of our final program more closely. There are some details that spoil the declarativity of our conversion somewhat. The advantages and disadvantages of our new approach become clear when we examine the conversion of an abstraction in comparison to the one in the previous version of LamToWat.
 
 We take a look at the conversion of \icode{Abs}. We generate a fresh function variable \icode{f} and continuation variable \icode{k}. We use these variables to create a function with name \icode{f} that has as argument the original variable and a continuation named \icode{k}. The body of the function will be the converted original body and a final statement that applies the continuation to the resulting variable. We finally return the function name wrapped in a \icode{LABEL}.
+
+% explain App blockZ
 
 \subsection{\label{subsection:semtosyn}Tree Compilation}
 \begin{lstlisting}[language=Haskell]
@@ -256,4 +258,27 @@ hoist (Node op@Inr{}  _ (Just (v,k))) = case hoist k of
     Node (Inl (Fix fs)) ks (Just ("_", (Node op [] (Just (v,k)))))
 \end{lstlisting}
 
+Hoisting can bundle the behavior of some of the \icode{Kon} expressions. However, syntactic command trees need more information to be revealed by pattern matching everytime we recur. This leads to a larger hoist function. Especially the case for \icode{Fix} increases in complexity significantly. The function still does exactly the same thing, but the structure of a syntactic command trees requires \icode{zip}ping and \icode{unzip}ping of function names, function arguments and function bodies.
+
 \subsection{\label{subsection:emit2}Emitting}
+\begin{lstlisting}[language=Haskell]
+emitE :: Tree Cmd Val -> [Wexp]
+emitE (Node (Inr (Record vs)) _ (Just (x, e))) =
+  zipWith (\ v i -> Store i (GlobalGet heapPointer) (emitV v)) vs [0,intSize..] ++
+  LocalSet x (GlobalGet heapPointer) :
+  GlobalSet heapPointer (Primop PLUS [GlobalGet heapPointer, I32_Const (length vs * intSize)]) :
+  emitE e
+emitE (Node (Inr (Select i v)) _ (Just (x, e))) =
+  LocalSet x (Load (i * intSize) (emitV v)) :
+  emitE e
+emitE (Node (Inr (App v vs)) _ _)  =
+  [ Return_Call_Indirect -- toggle tail call here
+    (Type (typePrefix ++ show (length vs)))
+    (emitV v) (map emitV vs)]
+emitE (Node (Inr (Plus v1 v2)) _ (Just (x, e))) =
+  LocalSet x (Primop PLUS [emitV v1, emitV v2]) :
+  emitE e
+emitE (Leaf v) = [emitV v]
+\end{lstlisting}
+
+Emitting requires only a change in pattern match of \icode{emitE}. The rest of this compilatioon step is completely the same as before.
