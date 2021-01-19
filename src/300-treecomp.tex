@@ -11,7 +11,7 @@ The version of the LamToWat compiler described in the previous section has two m
 In this chapter we propose two data types called semantic and syntactic command trees to alleviate these two shortcomings, respectively. They will replace the original \ac{CPS} \ac{IR}. A large part of LamToWat does not change: lexing, parsing, and printing of \ac{WA} code remains the same. The new compiler is structured as follows.
 
 \begin{gather*}
-  String \xto{lexify} Token \xto{parsify} Exp \xto{cpsify}\\
+  String \xto{lex} Token \xto{parse} Exp \xto{cpsify}\\
   Sem.Tree \xto{compile} Syn.Tree \xto{closify} Syn.Tree \xto{hoist} Syn.Tree \xto{emit} Wmodule \xto{show} String
 \end{gather*}
 
