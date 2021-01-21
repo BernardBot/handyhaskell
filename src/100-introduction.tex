@@ -2,4 +2,17 @@
 
 \chapter{\label{chap:introduction}Introduction}
 
-Introduction here.
+CPS is a time-tested paradigm for functional compilation \autocite{steele1978rabbit, DBLP:books/daglib/0022396}. It bridges the gap between high-level programming languages and (abstract) machine code. \ac{CPS} is primarily used for compiling first-class functions, but is flexible enough to compile other language features. \ac{CPS} is a style of programming, but can also be seen as a language in itself: a restricted form of the lambda calculus \autocite{barendregt1984lambda}. This fact gives it a solid theoretical foundation.
+
+The data structure that is used by a compiler to represent source code is called an \ac{IR}. A compiler writer uses an \ac{IR} to implement optimizations and translations. An \ac{IR} is designed to make compilation possible and pleasant. \ac{CPS} provides records and continuations as a convenient abstraction to model data flow and control flow \autocite{bruin2020framevm}. We will examine two flaws of \ac{CPS} in this thesis: \ac{CPS} conversion is hard to write, and transformations on the \ac{IR} are untyped. We propose command trees \autocite{commandtreespoulsen} as an improvement on \ac{CPS}. Our command tree based \ac{IR} will have a declarative front-end and some intrinsic types.
+
+To validate the usefulness of the changes to our \ac{IR} we will build a small compiler in Haskell \autocite{haskellhomepage} for \ac{WA} \autocite{webassemblyhomepage}. Our source language will be the lambda calculus. Even though the lambda calculus is a very simple functional programming language, it has sufficient abstraction to necessitate compilation. The first-class functions of the lambda calculus will need to be translated to the second-class functions of \ac{WA}. The compiler will have multiple smaller translation steps and multiple passes over the \ac{IR}. The translation from lambda calculus to our \ac{IR} and the elimination of first-class functions will demonstrate the convenience of the \ac{IR}.
+
+The contributions of this thesis are the following:
+\begin{itemize}
+\item Two version of LamToWat: a WebAssembly compiler for the lambda calculus.
+\item Command Trees as an \ac{IR} for functional languages.
+\end{itemize}
+
+%TODO: better outline
+This thesis will continue with a chapter on the first version of the compiler. Then we will go into some detail on command trees and show how they are used in the improved version of the compiler. Finally, we will discuss related work.
