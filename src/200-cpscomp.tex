@@ -1,9 +1,9 @@
 % !TEX root = document.tex
 
 \chapter{\label{chap:cpscomp}Compiling with Continuations}
-In this chapter we will develop the LamToWat compiler that translates the lambda calculus into WebAssembly \autocite{webassemblyhomepage}. Our compiler will be written in Haskell \autocite{haskellhomepage}. We follow a minimal version of the approach by \citeauthor{DBLP:books/daglib/0022396}. Consequently, \ac{CPS} will serve as \ac{IR}. The purpose of building LamToWat is to examine and then improve its \ac{IR}. The complexity of \ac{CPS} conversion and difficulties with the untyped \ac{IR} transformations will become apparent. Although we are not concerned with the peripherals of the compiler, an \ac{IR} is not used in a vacuum. We want to examine the compiler steps that map to and from the \ac{IR} as well as the ones that map to the \ac{IR} itself. If we can improve upon the already favorable features of \ac{CPS}, we are creating a better IR to program in.
+In this chapter we will develop the LamToWat compiler that translates the lambda calculus into WebAssembly \autocite{webassemblyhomepage}. Our compiler will be written in Haskell \autocite{haskellhomepage}. We follow a minimal version of the approach by \citeauthor{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396}. Consequently, \ac{CPS} will serve as \ac{IR}. The purpose of building LamToWat is to examine and then improve its \ac{IR}. The complexity of \ac{CPS} conversion and difficulties with the untyped \ac{IR} transformations will become apparent. Although we are not concerned with the peripherals of the compiler, an \ac{IR} is not used in a vacuum. We want to examine the compiler steps that map to and from the \ac{IR} as well as the ones that map to the \ac{IR} itself. If we can improve upon the already favorable features of \ac{CPS}, we are creating a better IR to program in.
 
-What makes \ac{CPS} favorable as an \ac{IR} is that it makes control flow and data flow explicit. These features nicely represent the objective of a compiler. The process of translating from a high-level to a low-level language can be viewed as describing abstractions in finer detail. \ac{CPS} uses special functions, called 'continuations', to describe more complex control flow constructs. Continuations are special functions. This fact becomes essential when translating languages with first-class functions.
+What makes \ac{CPS} favorable as an \ac{IR} is that it makes control flow and data flow explicit. These features nicely represent the objective of a compiler: translating from a high-level to a low-level language by describing abstractions in finer detail. \ac{CPS} uses special functions, called 'continuations', to describe more complex control flow constructs. The fact that continuations are special functions becomes essential when translating languages with first-class functions.
 
 LamToWat is a multipass compiler. This means that multiple passes over the \ac{IR} will be made, each transforming a part of the representation. The complete compiler comprises these \ac{IR} transformations with additional passes to read in source files and print the resulting \ac{WA}.
 
@@ -14,13 +14,15 @@ LamToWat is a multipass compiler. This means that multiple passes over the \ac{I
 
 LamToWat is split into a front-end and a back-end. The front-end of the compiler is made up of lexing, parsing, and \ac{CPS} conversion. We will not discuss lexing and parsing in detail, as it is irrelevant to the research in this thesis. We use Alex \autocite{haskellalex} and Happy \autocite{haskellhappy} to generate both a lexer and a parser for our compiler, respectively. The lexer converts source files into tokens and the parser in turn converts these tokens into an \ac{AST}. The back-end of LamToWat consist of three transformations on the \ac{IR}: closure conversion, hoisting, and emitting.
 
+LamToWat is validated by compiling programs written in the lambda calculus to \ac{WA} and then running this code using \ac{WABT}. We compare the results of the programs to expected results and see if they match. To automate this processs we use Shake \autocite{shake}. We will use the same programs to test both versions of LamToWat.
+
 The following sections will first describe the data types used in LamToWat with extra attention to the \ac{CPS} \ac{IR}. Then we will adhere to the organization of the compiler and discuss the relevant compiler passes over these data types in order.
 
 \section{\label{section:datatypes}Data Types}
-The data types of LamToWat will be implemented as Haskell data types. Haskell data types are indicated with the \icode{data} keyword. Every data type has a name, which comes after the keyword. Then a number of constructors follow separated by vertical bars. Data types can be recursively defined. Type aliases indicated with the \icode{type} keyword are also used; providing new names for already declared data types.
+The data types of LamToWat will be implemented as Haskell data types. Haskell data types are indicated with the \icode{data} keyword. Every data type has a name, which comes after the keyword. Then a number of constructors follow separated by vertical bars. Data types can be recursively defined. Type aliases indicated with the \icode{type} keyword are also used; providing new names for existing data types.
 
 \subsection{\label{subsection:expdata}Lambda Calculus}
-The \icode{Exp} data type represents the \ac{AST} of the lambda calculus. The three constructors for \icode{Abs}traction, \icode{App}lication, and \icode{Var}iables encompass the standard definition of the lambda calculus. Two constructors for \icode{Num}bers and \icode{Add}ition are added to make basic arithmetic possible. The lambda calculus is one of the smallest functional languages that still has many of the interesting properties of functional languages, such as first-class functions and recursion. Moreover, the lambda calculus is well-studied \autocite{barendregt1984lambda}. Programs written in the lambda calculus will be used for testing LamToWat.
+The \icode{Exp} data type represents the \ac{AST} of the lambda calculus. The three constructors for \icode{Abs}traction, \icode{App}lication, and \icode{Var}iables encompass the standard definition of the lambda calculus. Two constructors for \icode{Num}bers and \icode{Add}ition are added to make basic arithmetic possible. the lambda calculus is one of the smallest functional languages that still has many of the interesting properties of functional languages, such as first-class functions and recursion. Moreover, the lambda calculus is well-studied \autocite{barendregt1984lambda}. Programs written in the lambda calculus will be used for testing LamToWat.
 
 \begin{lstlisting}[language=Haskell]
 type Var = String
@@ -40,7 +42,7 @@ Two programs will be used as running examples throughout this thesis to show how
 (\ x -> (\ y -> x + y)) 13 29
 \end{lstlisting}
 
-We use the same notation as Haskell for the lambda calculus, \icode{\} and \icode{->} are used for lambda abstraction and a space is used for application. Both programs are valid inputs to LamToWat and contain all five of our lambda calculus constructs. The first program applies a function that adds 1 to its argument \icode{x} to the number 42. The second programs applies a nested function that adds its arguments to the numbers 13 and 29. We choose a program with nested functions and a program without nested functions as examples to display the compilation of this language feature separately. Translated to \icode{Exp} the programs are written as follows.
+We use the same notation as Haskell for the lambda calculus, \icode{\} and \icode{->} are used for lambda abstraction and a space is used for application. Both programs are valid inputs to LamToWat and contain all five of our the lambda calculus constructs. The first program applies a function that adds 1 to its argument \icode{x} to the number 42. The second programs applies a nested function that adds its arguments to the numbers 13 and 29. We choose a program with nested functions and a program without nested functions as examples to display the compilation of this language feature separately. Translated to \icode{Exp} the programs are written as follows.
 
 \begin{lstlisting}[language=Haskell]
 App (Abs "x" (Add (Var "x") (Num 1))) (Num 41)
@@ -82,10 +84,10 @@ The \icode{Cexp} data type guarantees that compiler transformations can be easil
 \item All intermediate values have names.
 \end{itemize}
 
-To illustrate how the data type is used we will translate the lambda calculus example \icode{(\ x -> x + 1) 41} to a \icode{Cexp}. We define a function in a \icode{Fix} block with name \icode{f} and argument \icode{x}. The body of this function adds \icode{x} and 1, names the result \icode{r}, and returns this result. Finally, we apply \icode{f} to 42.
+To illustrate how the data type is used we will translate the lambda calculus example \icode{(\ x -> x + 1) 41} to a \icode{Cexp}. We define a function in a \icode{FIX} block with name \icode{f} and argument \icode{x}. The body of this function adds \icode{x} and 1, names the result \icode{r}, and returns this result. Finally, we apply \icode{f} to 42.
 
 \begin{lstlisting}[language=Haskell]
-  Fix [("f", ["x"], ADD (VAR "x") (NUM 1) "r" (DONE "r"))] (APP (VAR "f") [NUM 41])
+  FIX [("f", ["x"], ADD (VAR "x") (NUM 1) "r" (DONE "r"))] (APP (VAR "f") [NUM 41])
 \end{lstlisting}
 
 \icode{Cexp}ressions can become large and unwieldy, especially in later stages of LamToWat. For this reason we use a simpler Python-like notation to describe \icode{Cexp} from now on. LamToWat prints \icode{Cexp} with the same notation. In this notation the translated example is written as follows.
@@ -97,14 +99,14 @@ def f(x):
 f(41)
 \end{lstlisting}
 
-\icode{Fix} blocks have been replaced by indented \icode{def}s. The assignment of intermediate variables is indicated with a \icode{<-}. Function application is performed by placing braces around the arguments and commas in between arguments. Records will be created with square brackets \icode{[1,2,3]} and selecting from records will be done with the operator \icode{!!}. Variables generated by the compiler will be prefixed with a \icode{.}. Variables indicating function names will be prefixed with a \icode{_}.
+\icode{FIX} blocks have been replaced by indented \icode{def}s. The assignment of intermediate variables is indicated with a \icode{<-}. Function application is performed by placing braces around the arguments and commas in between arguments. Records will be created with square brackets \icode{[1,2,3]} and selecting from records will be done with the operator \icode{!!}. Variables generated by the compiler will be prefixed with a '\icode{.}'. Variables indicating function names will be prefixed with a '\icode{_}'.
 
 \subsection{\label{subsection:webdata}WebAssembly Language}
 The WebAssembly language is a typed, hierarchical, high-level assembly language and a subset of WebAssembly \autocite{webassemblyhomepage}. As the final language in the compilation process it gives some guarantees about the well-formedness of the output of the compiler. The fundamental unit of code is a \icode{Wmodule} made up of a list of \icode{Wtexp}s. A \icode{Wtexp} is made up of \icode{Wexp}s.
 
-We have chosen \ac{WA} as the output language of LamToWat, because it is a 'real' language without first-class functions. A 'real' language is a language that has a sizeable group of users and developers around it. The absence of first-class functions requires LamToWat to actually compile the lambda calculus, which does have this feature. \ac{WA} is supported by many browsers, a large body of documentation is readily available \autocite{webassemblydocs}, and a development toolkit can be used for free \autocite{wabt}.
+We have chosen \ac{WA} as the output language of LamToWat, because it is a 'real' language without first-class functions. A 'real' language is a language that has a sizeable group of users and developers. \ac{WA} is supported by many browsers, a large body of documentation is readily available \autocite{webassemblydocs}, and a development toolkit can be used for free \autocite{wabt}. The absence of first-class functions requires LamToWat to actually compile the lambda calculus, which does have this feature. 
 
-\icode{I32_Const}, 32-bit integers are the basic values, used as both numbers and pointers. \icode{Func}tions are defined at the module level and can not be nested. They take zero or more arguments to a result as declared in their type signature. Local variables used in a function's body are also declared in its signature and can be \icode{LocalSet} and \icode{LocalGet}. All function calls are indirect, meaning that the function a variable points to is resolved at runtime. A \icode{Table} with function pointer \icode{Elem}ents for the called functions is required at compile time. Persistent \icode{Memory} is allocated statically and its data can be \icode{Load}ed and \icode{Store}d. A \icode{GlobalDef}ined variable can be used in the entire module, it has a \icode{GlobalType} and can be \icode{GlobalSet} and \icode{GlobalGet}. The only \icode{Primop}eration is addition.
+\icode{I32_Const}, 32-bit integers are the basic values, used as both numbers and pointers. \icode{Func}tions are defined at the module level and can not be nested. They take zero or more arguments to a result as declared in their type signature. Local variables used in a function's body are also declared in its signature and can be \icode{LocalSet} and \icode{LocalGet}. All function calls are indirect, meaning that the function a function index points to is resolved at runtime. The type of the called function needs to be declared as the first argument to an indirect call. A \icode{Table} with function \icode{Elem}ents maps function indices to actual functions. Persistent \icode{Memory} is allocated statically and its data can be \icode{Load}ed and \icode{Store}d. A \icode{GlobalDef}ined variable can be used in the entire module, it has a \icode{GlobalType} and can be \icode{GlobalSet} and \icode{GlobalGet} if its type is \icode{Mut}able. The only \icode{Primop}eration is addition. \icode{Export} provides a function with an alias as entry point to the module.
 
 \begin{lstlisting}[language=Haskell]
 type Size = Int
@@ -142,7 +144,7 @@ data Wexp
 data Wop = PLUS
 \end{lstlisting}
 
-Our example program \icode{(\ x -> x + 1) 41} would be translated to a \icode{Wmodule} as follows.
+Our example program \icode{(\ x -> x + 1) 41} would be translated to a \icode{Wmodule} as follows. We declare a \icode{Table} with one function pointer \icode{Elem}ent for function \icode{f}. We need one type for function \icode{f} called \icode{t}. It has one 32-bit integer argument and returns a 32-bit integer. We define the function \icode{f} with argument \icode{x}. The body of the function uses the \icode{Primop} \icode{PLUS} to add its argument and the number 1. The function \icode{start} is the entry point of the program. We see how an indirect call works: first state the \icode{Type}, then the index of the function in the \icode{Table}, and finally the list of arguments.
 
 \begin{lstlisting}[language=Haskell]
 Wmodule [
@@ -154,13 +156,12 @@ Wmodule [
   ],
   Func "start" [] I32 [] [
     Call_Indirect (Type "t") (I32_Const 0) [I32_Const 41]
-  ]
+  ],
+  Export "start" "start"
 ]
 \end{lstlisting}
 
-We declare a \icode{Table} with one function pointer \icode{Elem}ent for function \icode{f}. We need one type for function \icode{f} called \icode{t}. It has one 32-bit integer argument and returns a 32-bit integer. We define the function \icode{f} with argument \icode{x}. The body of the function uses the \icode{Primop} \icode{PLUS} to add its argument and the number 1. The function \icode{start} is the entry point of the program. We see how an indirect call works: first state the \icode{Type}, then the index of the function in the \icode{Table}, finally the list of arguments.
-
-We will also use the printed version of \ac{WA}, which is also the output of our compiler to describe the \ac{WA} data type. In this notation the example would be written as follows.
+We will also use the printed version of \ac{WA}, which is the actual final output of our compiler. In this notation the example would be written as follows. Most of the printed notation maps one-to-one to the original. Keywords are now lower case, and square brackets are replaced with round brackets. Some keywords are added, such as \icode{funcref}, \icode{result}, and \icode{param}. Variables are prefixed with a \icode{$}. 
 
 \begin{lstlisting}[language=Haskell]
 (module
@@ -170,16 +171,25 @@ We will also use the printed version of \ac{WA}, which is also the output of our
   (func $f (param x i32) (result i32)
     (i32.add (local.get $x) (i32.const 1)))
   (func $start (result i32)
-    (call_indirect (type $t) (i32.const 0) (i32.const 41))))
+    (call_indirect (type $t) (i32.const 0) (i32.const 41)))
+  (export "start" (func "start")))
 \end{lstlisting}
 
-Most of the printed notation maps one-to-one to the original. Keywords are now lower case, and square brackets are replaced with round brackets. Some keywords are added, such as \icode{funcref}, \icode{result}, and \icode{param}. Variables are prefixed with a \icode{$}. 
+The creation of records is now done by storing elements on the heap and then incrementing the global \icode{$.heap_pointer}. Creating a record \icode{.record <- [1,2,3]} is handled as follows. Note that we take offsets of 4 bytes between elements, the size of a 32-bit integer. The \icode{$.heap_pointer} will keep increasing during the execution of the program as there is no garbage collection. This may lead to the \icode{$.heap_pointer} pointing to a memory location outside the allocated memory and the program crashing.
+
+\begin{lstlisting}[language=Haskell]
+(i32.store offset=0 (global.get $.heap_pointer) (i32.const 1))
+(i32.store offset=4 (global.get $.heap_pointer) (i32.const 2))
+(i32.store offset=8 (global.get $.heap_pointer) (i32.const 3))
+(local.set $.record (global.get $.heap_pointer))
+(global.set $.heap_pointer (i32.add (global.get $.heap_pointer) (i32.const 12)))
+\end{lstlisting}
 
 \section{\label{section:transforms}Transformations}
 Transformations or compiler passes of LamToWat will be implemented as Haskell functions. These functions will transform the data types of the previous section. A transformation can convert a data type to a different data type, or to the same data type with certain properties.
 
 \subsection{\label{subsection:cpsconvert}CPS Conversion}
-\ac{CPS} conversion will transform the \icode{Exp} data type into the \icode{Cexp} data type. By converting to \ac{CPS} we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and have an extra argument to our conversion function that indicates the order of expressions. Fresh variables are generated using a monad. We use Haskell's \icode{do}-notation to write our monadic conversion function in an imperative style. The extra argument to our function is also called a metacontinuation: a continuation in the metalangauge.
+\ac{CPS} conversion will transform the \icode{Exp} data type into the \icode{Cexp} data type. By converting to \ac{CPS} we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and have an extra argument to our conversion function that indicates the order of expressions. Fresh variables are generated using a monad \autocite{DBLP:conf/lics/Moggi89}. We use Haskell's \icode{do}-notation to write our monadic conversion function in an imperative style. The extra argument to our function is also called a metacontinuation: a continuation in the metalangauge.
 
 \icode{convert} is split up into cases for each constructor of \icode{Exp}. The values \icode{Var} and \icode{Num} are converted to \ac{CPS} values. To convert the anonymous 
 function \icode{Abs} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the metacontinuation \icode{c}. Then we convert the body of the function \icode{e}, giving it a metacontinuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{FIX} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
@@ -211,7 +221,7 @@ convert (Add a b) c = do
     return $ ADD a' b' x c'))
 \end{lstlisting}
 
-We give an example of a call to the \ac{CPS} conversion function to see how it works. It takes a simple \icode{Exp} and prints out a \icode{Cexp}. Variables generated by the \icode{convert} are prefixed with a \icode{.}. Variables indicating function names are prefixed with an additional \icode{_}. The function \icode{.r0} is a return point created by \icode{convert} in the \icode{App} case for the function \icode{.f2}. It is simply the identity which has no continuation argument, and is the last function that is called by the program. The anonymous function is named \icode{.f2}. It still has its argument \icode{x}, but also an extra continuation argument \icode{.k3}. We add 1 to the argument \icode{x} and assign it to \icode{.x4}, which is passed to the continuation \icode{.k3}. A function call to \icode{.f2} with arguments 41 and continuation \icode{_.r0} is the final expression of the program.
+We give an example of a call to the \ac{CPS} conversion function to see how it works. It takes a simple \icode{Exp} and prints out a \icode{Cexp}. Variables generated by the \icode{convert} are prefixed with a '\icode{.}'. Variables indicating function names are prefixed with an additional '\icode{_}'. The function \icode{.r0} is a return point created by \icode{convert} in the \icode{App} case for the function \icode{.f2}. It is simply the identity which has no continuation argument, and is the last function that is called by the program. The anonymous function is named \icode{.f2}. It still has its argument \icode{x}, but also an extra continuation argument \icode{.k3}. We add 1 to the argument \icode{x} and assign it to \icode{.x4}, which is passed to the continuation \icode{.k3}. A function call to \icode{.f2} with arguments 41 and continuation \icode{_.r0} is the final expression of the program.
 
 \begin{lstlisting}[language=Haskell]
 > cpsify (App (Abs "x" (Add (Var "x") (Num 1))) (Num 41))
@@ -268,11 +278,12 @@ closify e = go e
         apply (VAR f)   vs = SELECT 0 (VAR f) f_F (APP (VAR f_F) (VAR f:vs))
           where f_F = f ++ funcTag
 \end{lstlisting}
-% TODO
+
 We show how the example function \icode{(\ x -> (\ y -> x + y)) 13 29} is closure converted. We see that we first call \icode{cpsify} and then call \icode{closify}. The output of the previous cps conversion step is transformed. It is insightful to look at the output of the previous step and compare it to the one presented here. Closures are created for all functions and sufffixed with \icode{_C}. The opening of closures to extract a function pointer is done by selecting the first argument of the closure and suffixing the name with \icode{_F}. The variable \icode{x} is now brought into the scope of the function \icode{.f6} by opening the closure argument. The function \icode{.f6} thus no longer has free variables. This was the only requirement for closure conversion to be considered succesful, but since the conversion is not optimal multiple other expressions are added too. For example, closures are created for functions that do not have any free variables, such as in the expression \icode{.f4_C <- [_.f4]}.
 
 \begin{lstlisting}[language=Haskell]
-> closify (cpsify (App (App (Abs "x" (Abs "y" (Add (Var "x") (Var "y")))) (Num 13)) (Num 29)))
+> closify (cpsify
+    (App (App (Abs "x" (Abs "y" (Add (Var "x") (Var "y")))) (Num 13)) (Num 29)))
 
 def .r0(.env,.x1):
   .x1
@@ -309,11 +320,11 @@ hoist (FIX fs e)       = case hoist e of FIX fs e -> FIX (fs'++fs) e
   where fs' = concatMap (\ (f,as,b) -> case hoist b of FIX fs e -> (f,as,e) : fs) fs
 \end{lstlisting}
 
-% TODO
-We continue with the example from the previous section. The only change is that the function \icode{.f6} has been hoisted to the top level.
+We continue with the example from the previous subsection. The only change is that the function \icode{.f6} has been hoisted to the top level.
 
 \begin{lstlisting}[language=Haskell]
-> hoist (closify (cpsify (App (App (Abs "x" (Abs "y" (Add (Var "x") (Var "y")))) (Num 13)) (Num 29))))
+> hoist (closify (cpsify
+    (App (App (Abs "x" (Abs "y" (Add (Var "x") (Var "y")))) (Num 13)) (Num 29))))
 
 def .r0(.env,.x1):
   .x1
@@ -383,17 +394,18 @@ The example shows the final output of LamToWat of the function \icode{(\ x -> x 
     (i32.store offset=0 (global.get $.heap_pointer) (i32.const 0))
     (local.set $.r0_C (global.get $.heap_pointer))
     (global.set $.heap_pointer (i32.add (global.get $.heap_pointer) (i32.const 4)))
-    (return_call_indirect (type $.t3) (local.get $.f2_C) (i32.const 41) (local.get $.r0_C) (i32.const 1))
+    (return_call_indirect
+      (type $.t3) (local.get $.f2_C) (i32.const 41) (local.get $.r0_C) (i32.const 1))
   )
   (export ".start" (func $.start))
   (func $.r0 (param $.env i32) (param $.x1 i32) (result i32)  
     (local.get $.x1)
   )
-  (func $.f2 (param $.env i32) (param $x i32) (param $.k3 i32) (result i32) (local $.x4 i32) (local $.k3_F i32)  
+  (func $.f2 (param $.env i32) (param $x i32) (param $.k3 i32) (result i32)
+                                                (local $.x4 i32) (local $.k3_F i32)  
     (local.set $.x4 (i32.add (local.get $x) (i32.const 1)))
     (local.set $.k3_F (i32.load offset=0 (local.get $.k3)))
     (return_call_indirect (type $.t2) (local.get $.k3) (local.get $.x4) (local.get $.k3_F))
   )
 )
 \end{lstlisting}
-
