@@ -9,7 +9,7 @@ Although command trees provide a useful abstraction for language implementers, i
 
 Syntactic command trees are very similar to \icode{Cexp} and can even be replaced by them. The added value of semantic command trees is better pattern matching and more flexibility in the commands it uses. However, in the LamToWat implementation we choose commands that match \icode{Cexp} almost one-to-one. Most of the \ac{IR} transformations remain mostly the same. One could argue that the semantic command trees should be compiled to \icode{Cexp} instead, allowing for reuse of the original compiler code.
 
-Syntactic command trees originally had more types, but these proved to make compilation more difficult. The goal was to make the transformations type-preserving, meaning that if a program has a type before the transformation than the transformed program has a matching transformed type. In concrete terms it means that if you write a well-typed program and compile it, the compiled program will also be well-typed. The compiler writer will have to define the transformations on both the data type itself and its type. In addition, the programmer will have to prove to the typechecker that the transformed expression has the correct type. These added requirements on behalf of the compiler writer make the actual implementation very hard. This could partly be a attributed to the type system of the metalanguage (Haskell), which does not have 'real' dependent types. Typing the transformations is not a new problem and has been solved by a mutliple authors \autocite{DBLP:conf/popl/MorrisettWCG98, DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07}. Keeping these transformation both type-preserving and easy to write in actual metalanguage is more complicated. What the types of \ac{CPS} would be is discussed in the next section.
+Syntactic command trees originally had more types, but these proved to make compilation more difficult. The goal was to make the transformations type-preserving, meaning that if a program has a type before the transformation than the transformed program has a matching transformed type. In concrete terms it means that if you write a well-typed program and compile it, the compiled program will also be well-typed. The compiler writer will have to define the transformations on both the data type itself and its type. In addition, the programmer will have to prove to the typechecker that the transformed expression has the correct type. These added requirements on behalf of the compiler writer make the actual implementation very hard. This could partly be a attributed to the type system of the metalanguage (Haskell), which does not have 'real' dependent types. It is for example not trivial to prove that if you concatenate a \icode{Vec n a} and a \icode{Vec m a} the resulting type will be \icode{Vec (m + n) a)} \autocite{10.1145/2578854.2503786}. Typing the transformations of \ac{CPS} is not a new problem and has been solved by a multiple authors \autocite{DBLP:conf/popl/MorrisettWCG98, DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07}. Keeping these transformation both type-preserving and easy to write in a real metalanguage is more complicated. What the types of \ac{CPS} would be is discussed in the next section.
 
 \section{\label{section:cpstype}Typing CPS}
 The \icode{Cexp} datatype allows us to define bogus programs, e.g., a program that applies a number to a number. In this section we will define more precisely what constitutes a valid program. In order to do this we will give the static semantics of the \ac{CPS} datatype by way of typing rules \autocite{DBLP:conf/popl/MorrisettWCG98, DBLP:conf/pldi/Chlipala07}.
@@ -38,7 +38,21 @@ The typing judgement $\Gamma \vdash e$ indicates that expression or value $e$ is
 
 Since all our expressions do not return values, their typing judgements do not state types. The \icode{DONE} constructor could be argued to return a type, but we will interpret it as a constructor that halts computation and accepts a result.
 
-In our metalanguage Haskell we would describe typing rules using mostly GADTs. Expression will have an environment type on top of their normal type. Variables will be represented by de Bruijn indices \autocite{de1972lambda}. %TODO
+\subsection{\label{subsection:cpstypetrans}Typing CPS Transformations}
+In our metalanguage Haskell we would describe typing rules using mostly GADTs. Expression will have an environment type on top of their normal type. Variables will be represented by de Bruijn indices \autocite{de1972lambda}. \citeauthor{DBLP:conf/haskell/GuillemetteM07} used the following encoding for closure conversion.
+
+\begin{lstlisting}[language=Haskell]
+data ExpC ts t where
+  Cclosure :: ExpC () ((t1, env) -> t2)
+           -> ExpC ts env
+           -> ExpC ts (Closure t1 t2)
+  Copen ::    ExpC ts (Closure t1 t2)
+           -> (forall env. ExpC (((t1, env) -> t2, env), ts) t)
+           -> ExpC ts t
+-- ...
+\end{lstlisting}
+
+\icode{ExpC} has two type parameter: an environment \icode{ts} and an actual type \icode{t}. If we look at the signature of \icode{Cclosure} we see that it takes two arguments: a function that is well-typed in an empty environment \icode{()} and takes an extra environment argument, and the environment itself. This ensures that the function does not contain any free variables. Note that the closure is agnostic about the type of its environment. This guarantees that two functions that originally had the same type will have the same type when they are closure converted as well. \icode{Copen} opens a closure. It takes a closure argument and an expression that is well-typed in an environment extended by the closure, i.e., the function pointer and the free variables in \icode{env}.
 
 \section{\label{section:cpscomp}Alternatives to CPS}
 % TODO
@@ -49,8 +63,8 @@ In our metalanguage Haskell we would describe typing rules using mostly GADTs. E
 There are many choices when it comes to \acp{IR}. We will take a look at a couple modern alternatives and compare them to \ac{CPS} to gain a more thorough understanding of why we picked it as an \ac{IR}. The \acp{IR} we will use for the comparison are:
 
 \begin{itemize}
-\item \textbf{SSA}\autocite{DBLP:journals/toplas/CytronFRWZ91}: used by LLVM\autocite{llvmlangref} compiler framework. In this \ac{IR} every variable is assigned exactly once. Variables need to be defined before it is used. When to control flows meet, an explicit transfer function is used to keep a resemblance to single assignment.
-\item \textbf{Cmm}\autocite{DBLP:conf/ppdp/JonesRR99, haskellcmm}: used in the \ac{GHC}. Cmm is a high-level, portable assembly langauge that has a syntax similar to C.
+\item \textbf{SSA} \autocite{DBLP:journals/toplas/CytronFRWZ91}: used by LLVM \autocite{llvmlangref} compiler framework. In this \ac{IR} every variable is assigned exactly once. Variables need to be defined before it is used. When to control flows meet, an explicit transfer function is used to keep a resemblance to single assignment.
+\item \textbf{Cmm} \autocite{DBLP:conf/ppdp/JonesRR99, haskellcmm}: used in the \ac{GHC}. Cmm is a high-level, portable assembly langauge that has a syntax similar to C.
 \end{itemize}
 
 An advantage of compiling functional languages or languages with functions to \ac{CPS} is that \ac{CPS} defines functions natively. We can translate functions to functions (with some conventions) in our \ac{CPS} language. In other \acp{IR} we will have to represent functions with lower-level constructs such as labels and jumps combined with a stack. \ac{CPS} in turn will have to encode lower-level constructs with functions.
