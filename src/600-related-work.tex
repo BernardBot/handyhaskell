@@ -1,5 +1,60 @@
 % !TEX root = document.tex
 
-\chapter{\label{chap:related-work}Related Work and Evaluation}
+\chapter{\label{chap:related-work}Related Work and Discussion}
 
-Related work here.
+In this chapter we will look at some of the theory behind the compilation scheme used in this thesis and discuss the shortcomings and improvements of our proposed solution of command trees.
+
+\section{\label{section:commandtrees}Command Trees Improvements}
+Although command trees provide a useful abstraction for language implementers, it does require knowledge of the block model for control flow. In the original version of LamToWat \ac{CPS} conversion is implemented using a metacontinuation. This metacontinuation indicates what a program does next. When we transform a application we have to construct a return point function and pass it as the last argument to the new application. These manipulations of control flow become even more non-trivial when implementing imperative language constructs such as \icode{while} and \icode{for}. Moreover, when we have to use multiple metacontinuations in case we want to throw exceptions or break from a \icode{while} loop, the bookkeeping of metacontinuations becomes cumbersome. Semantic command trees alleviate the programmer somewhat by having these metacontinuations live inside the tree. The language implementer will still need to wrap certain parts of code inside a block and fetch the right continuation at the right point. The real burden is now put on the compiler writer, who has to compile the semantic command tree into a syntactic one. This requires juggling of the internalized metacontinuations and though it may be simpler than the alternative, it is not simple in itself.
+
+Syntactic command trees are very similar to \icode{Cexp} and can even be replaced by them. The added value of semantic command trees is better pattern matching and more flexibility in the commands it uses. However, in the LamToWat implementation we choose commands that match \icode{Cexp} almost one-to-one. Most of the \ac{IR} transformations remain mostly the same. One could argue that the semantic command trees should be compiled to \icode{Cexp} instead, allowing for reuse of the original compiler code.
+
+Syntactic command trees originally had more types, but these proved to make compilation more difficult. The goal was to make the transformations type-preserving, meaning that if a program has a type before the transformation than the transformed program has a matching transformed type. In concrete terms it means that if you write a well-typed program and compile it, the compiled program will also be well-typed. The compiler writer will have to define the transformations on both the data type itself and its type. In addition, the programmer will have to prove to the typechecker that the transformed expression has the correct type. These added requirements on behalf of the compiler writer make the actual implementation very hard. This could partly be a attributed to the type system of the metalanguage (Haskell), which does not have 'real' dependent types. Typing the transformations is not a new problem and has been solved by a mutliple authors \autocite{DBLP:conf/popl/MorrisettWCG98, DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07}. Keeping these transformation both type-preserving and easy to write in actual metalanguage is more complicated. What the types of \ac{CPS} would be is discussed in the next section.
+
+\section{\label{section:cpstype}Typing CPS}
+The \icode{Cexp} datatype allows us to define bogus programs, e.g., a program that applies a number to a number. In this section we will define more precisely what constitutes a valid program. In order to do this we will give the static semantics of the \ac{CPS} datatype by way of typing rules \autocite{DBLP:conf/popl/MorrisettWCG98, DBLP:conf/pldi/Chlipala07}.
+
+\begin{equation*}
+t ::= int \quad | \quad \overline{t} \to int \quad | \quad [t_1, \dots, t_n]
+\end{equation*}
+
+We have a small type language consisting of integers, arrows, and records. Because functions are just jumps, our arrow function reflects this by stating that functions do not return values, but lead to a final integer result. Record types are simply products of types.
+
+\begin{equation*}
+\frac{}{\vdash \icode{NUM} \, i : int} \quad \frac{\Gamma \vdash x : t}{\Gamma \vdash \icode{VAR} \, x : t} \quad \frac{\Gamma \vdash f : \overline{t} \to int}{\Gamma \vdash \icode{LABEL} \, f : \overline{t} \to int}
+\end{equation*}
+
+The typing judgement $\Gamma \vdash e$ indicates that expression or value $e$ is well typed in the environment $\Gamma$. Typing judgements for values are straightforward. \icode{NUM} has an integer type and \lstinline{VAR} has the type of the variable it contains. The only interesting value is \icode{LABEL}, which can exclusively hold variables that have a function type.
+
+\begin{gather*}
+\Gamma, f_1 : \overline{t_1} \to int, \dots, f_n : \overline{t_n} \to int, x_{i_1} : t_{i_1}, \dots, x_{i_{m_i}} : t_{i_{m_i}} \vdash e_i \\
+\frac{\Gamma, f_1 : \overline{t_1} \to int, \dots, f_n : \overline{t_n} \to int \vdash e}{\Gamma \vdash \icode{FIX} [(f_1, [x_{1_1}, \dots, x_{1_{m_1}}], e_1), \dots, (f_n, [x_{n_1}, \dots, x_{n_{m_n}}], e_n)] \, e} \\ \\
+\frac{\Gamma \vdash v : (t_1, \dots, t_n) \to int \quad \Gamma \vdash v_i : t_i}{\Gamma \vdash \icode{APP} \, v \, [v_1, \dots, v_n]} \\ \\
+\frac{\Gamma \vdash v_1 : t_1 \quad \Gamma \vdash v_2 : t_2 \quad \Gamma, x : t \vdash e}{\Gamma \vdash \icode{ADD} \, v_1 \, v_2 \, x \, e} \\ \\
+\frac{\Gamma \vdash v_i : t_i \quad \Gamma, x : [t_i, \dots, t_n] \vdash e}{\Gamma \vdash \icode{RECORD} \, [v_1, \dots, v_n] \, x \, e} \\ \\
+\frac{\Gamma \vdash i : int \quad \Gamma \vdash v : [t_1, \dots, t_n] \quad \Gamma, x : t_i \vdash e}{\Gamma \vdash \icode{SELECT} \, i \, v \, x \, e} \\ \\
+\frac{\Gamma \vdash v : t}{\Gamma \vdash \icode{DONE} \, v}
+\end{gather*}
+
+Since all our expressions do not return values, their typing judgements do not state types. The \icode{DONE} constructor could be argued to return a type, but we will interpret it as a constructor that halts computation and accepts a result.
+
+In our metalanguage Haskell we would describe typing rules using mostly GADTs. Expression will have an environment type on top of their normal type. Variables will be represented by de Bruijn indices \autocite{de1972lambda}. %TODO
+
+\section{\label{section:cpscomp}Alternatives to CPS}
+% TODO
+% compare cps to other IRs (just like in greendbook...) (LLVM (SSA), Haskell (Cmm), Java (bytecode))
+% - data flow
+% - closure conversion
+% - semantics
+There are many choices when it comes to \acp{IR}. We will take a look at a couple modern alternatives and compare them to \ac{CPS} to gain a more thorough understanding of why we picked it as an \ac{IR}. The \acp{IR} we will use for the comparison are:
+
+\begin{itemize}
+\item \textbf{SSA}\autocite{DBLP:journals/toplas/CytronFRWZ91}: used by LLVM\autocite{llvmlangref} compiler framework. In this \ac{IR} every variable is assigned exactly once. Variables need to be defined before it is used. When to control flows meet, an explicit transfer function is used to keep a resemblance to single assignment.
+\item \textbf{Cmm}\autocite{DBLP:conf/ppdp/JonesRR99, haskellcmm}: used in the \ac{GHC}. Cmm is a high-level, portable assembly langauge that has a syntax similar to C.
+\end{itemize}
+
+An advantage of compiling functional languages or languages with functions to \ac{CPS} is that \ac{CPS} defines functions natively. We can translate functions to functions (with some conventions) in our \ac{CPS} language. In other \acp{IR} we will have to represent functions with lower-level constructs such as labels and jumps combined with a stack. \ac{CPS} in turn will have to encode lower-level constructs with functions.
+
+\ac{CPS} is a prime candidate for inline expansion. Inline expansion substitutes function calls with function bodies with the respective variables in place. This operation is also known as beta-expansion.
+
+Data flow analysis is essential to compilers.
