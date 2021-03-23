@@ -37,7 +37,7 @@ data Lam
   | App Lam Lam
   | Add Lam Lam
   | Var String
-  | Int Int
+  | Num Int
 \end{lstlisting}
 
 Two programs will be used as running examples throughout this thesis to show how the compilation process works. In the lambda calculus they are written as follows.
@@ -50,8 +50,8 @@ Two programs will be used as running examples throughout this thesis to show how
 We use the same notation as Haskell uses for the lambda calculus, \icode{\} and \icode{->} are used for lambda abstraction and a space is used for application. Both programs are valid inputs to LamToWat and contain all five of the lambda calculus constructs. The first program applies a function that adds 1 to its argument \icode{x} to the number 42. The second programs applies a nested function that adds its arguments to the numbers 13 and 29. We choose a program with nested functions and a program without nested functions as examples to display the compilation of this language feature separately. Translated to the \icode{Lam} language the programs are written as follows.
 
 \begin{lstlisting}[language=Haskell]
-App (Lam "x" (Add (Var "x") (Int 1))) (Int 41)
-App (App (Lam "x" (Lam "y" (Add (Var "x") (Var "y")))) (Int 13)) (Int 29)
+App (Lam "x" (Add (Var "x") (Num 1))) (Num 41)
+App (App (Lam "x" (Lam "y" (Add (Var "x") (Var "y")))) (Num 13)) (Num 29)
 \end{lstlisting}
 
 You can instantly see why we prefer the shorter notation. \icode{Lam} expressions contain lots of brackets and constructor names. These declare the order of operations and the sort of (sub)-expression we are dealing with. This information is required by the compiler. Our parser program converts from the first notation to the \icode{Lam} language.
@@ -131,36 +131,51 @@ data Exp
   | Done Val
 \end{lstlisting}
 
-Let's see how our example program looks in the \icode{Wat} language.
+Let's see how our example program looks in the \icode{Wat} language. The only real difference is the use of the an \icode{INT} instead of a \icode{LABEL} to indicate a function pointer.
 
 \begin{lstlisting}[language=Haskell]
 Module 
   [("f",["x"],Add (VAR "x") (INT 1) "r" (Done (VAR "r")))]
   (App (INT 0) [INT 41])
 \end{lstlisting}
-
-The only real difference is the use of the an \icode{INT} instead of a \icode{LABEL} to indicate a function pointer. We have a pretty-printed version for \icode{Wat} as well which looks as follows. It has a similar structure to \icode{Cps}, but it has some of the keywords of WebAssembly instead of Python.
+ We can print \icode{Wat} as 'real' WebAssembly that can be compiled and ran by WABT \autocite{wabt}. Our program has become a lot longer and there are many new keywords. WebAssembly requires the programmer to declare some extra information. This information can be deduced from the previous expression, so we can generate it automatically. The first seven lines declare that there is one page of mutable global memory and a mutable heap pointer. There is one function reference of the function \icode{f}. This function has type \icode{_t1}. In order to run the program we need to export the \icode{_start} function. Following the preamble we see the entry point of our program in the form of the function \icode{start} and our original function \icode{f}. Function signatures now include a result type (which is always \icode{i32}) and all locally used variables. When we call a function we indicate the type of that function.
 
 \begin{lstlisting}
-module
-func f (param x)
-  r = x + 1
-  return r
-call 0 41
+(module
+(memory 1)
+(global $_p (mut i32) (i32.const 0))
+(table 1 funcref)
+(elem (i32.const 0) $f)
+(type $_t1 (func (param i32) (result i32)))
+(export "_start" (func $_start))
+(func $_start  (result i32) 
+  (call_indirect (type $_t1) (i32.const 41) (i32.const 0))
+)
+(func $f (param $x i32) (result i32) (local $r i32)
+  (local.set $r (i32.add (local.get $x) (i32.const 1)))
+  (local.get $r)
+)
+)
 \end{lstlisting}
 
 \section{\label{section:transforms}Transformations}
 Transformations or compiler passes of LamToWat will be implemented as Haskell functions. These functions will transform the data types of the previous section. A transformation can convert a data type to a different data type, or to the same data type with certain properties. The (side-)effects of the transformations are modeled using monads \autocite{DBLP:conf/lics/Moggi89}. Monads allow us to write effectful code in a pure functional language like Haskell. We can combine monadic effects by using monad transformers \autocite{DBLP:conf/popl/LiangHJ95}. We have the convention that we name this combined monad for effects \icode{M}.
 
 \subsection{\label{subsection:cpsconvert}CPS Conversion}
-CPS conversion will transform the \icode{Lam} data type into the \icode{Cps} data type. By converting our program to continuation-passing style we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and have a continuation that indicates the order of expressions. Fresh variables are generated using the state monad. The extra argument to our function is also called a metacontinuation: a continuation in the metalangauge and will be provided by the continuation monad. We use Haskell's \icode{do}-notation to write our monadic conversion function in an imperative style. 
+CPS conversion will transform the \icode{Lam} data type into the \icode{Cps} data type. By converting our program to continuation-passing style we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and have a continuation that indicates the order of expressions. Fresh variables are generated using the state monad. The extra argument to our function is also called a metacontinuation: a continuation in the metalanguage and will be provided by the continuation monad. We use Haskell's \icode{do}-notation to write our monadic conversion function in an imperative style. Our monad \icode{M} will have the following type, the order of transformers is arbitrary.
+
+\begin{lstlisting}[language=Haskell]
+type M = ContT Cps (State Int)
+\end{lstlisting}
 
 \icode{l2c} is split up into cases for each constructor of \icode{Lam}. The values \icode{Var} and \icode{Int} are converted to CPS values. To convert the anonymous function \icode{Lam} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the metacontinuation \icode{c}. We convert the body of the function \icode{e}, giving it a metacontinuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{FIX} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
 
+% show normal defintion (with extra argument)
+% show greenbook function (chapter 5)
 \begin{lstlisting}[language=Haskell]
 l2c :: Lam -> M Val
 l2c (Var x) = return (VAR x)
-l2c (Int i) = return (INT i)
+l2c (Num i) = return (INT i)
 l2c (Lam x e) = ContT (\ c -> do
   f <- fresh "f"
   k <- fresh "k"
@@ -214,8 +229,16 @@ Closure conversion transforms the \icode{Cps} data type into the \icode{Cps} dat
 
 There are many approaches to generating closures. We take an approach optimized for simplicity. When we encounter a \icode{FIX} we ask what variables are in scope. For each function we add an extra first argument \icode{_nv}: the closure record. We prefix the function body with selecting and naming all variables in scope from the closure record. When we encounter an \icode{APP} we created a record with all variables in scope and pack it with the function pointers that are in function or argument position off the \icode{APP} to create a closure and rename it by prefixing an underscore. To apply the closure we select the first argument from the respective record and apply it to itself and its original arguments. For the other constructors we simply update the environment with their assigned names.
 
+We now use a different monad \icode{M} to keep track of the environment and collect our functions. \icode{M} consists of a combination of the Writer and the Reader monad. The first one is used for collecting functions and the second one to keep track of the environment. \icode{M} has the following type. The order of transformers is arbitrary.
+
+\begin{lstlisting}[language=Haskell]
+type M =  WriterT [Fun] (Reader [String])
+\end{lstlisting}
+
 Care must be taken to ensure that the closest variable binds (lexical scope). This means that when we enter a function we bring into scope the environment variables that are not arguments of the function, see the helper function \icode{open}.
 
+% adjust M
+% cite Haskell
 \begin{lstlisting}[language=Haskell]
 c2c :: Cps -> M Cps
 c2c (FIX fs e) = do
@@ -328,30 +351,46 @@ cps2wat (FIX fs e) = Module fs' (go e)
 Let's look at a final example for the function \icode{(\ x -> x + 1) 41}. We have no side-effects as can be seen in the signature for \icode{cps2wat}, so we will simply use this function.
 
 \begin{lstlisting}[language=Haskell]
-module
-func _f0 (param _nv) (param x) (param _k1)
-  _nv = load 1 _nv
-  _x2 = x + 1
-  _nv = malloc 3
-  store 0 _nv x
-  store 1 _nv _k1
-  store 2 _nv _x2
-  __k1 = load 0 _k1
-  call __k1 _k1 _x2
-func _r3 (param _nv) (param _x4)
-  _nv = load 1 _nv
-  return _x4
-_nv = malloc 0
-__f0 = malloc 2
-store 0 __f0 0
-store 1 __f0 _nv
-__r3 = malloc 2
-store 0 __r3 1
-store 1 __r3 _nv
-call 0 __f0 41 __r3
+(module
+(memory 1)
+(global $_p (mut i32) (i32.const 0))
+(table 2 funcref)
+(elem (i32.const 0) $_f0 $_r3)
+(type $_t2 (func (param i32) (param i32) (result i32)))
+(type $_t3 (func (param i32) (param i32) (param i32) (result i32)))
+(export "_start" (func $_start))
+(func $_start  (result i32) (local $_nv i32) (local $__f0 i32) (local $__r3 i32)
+  (local.set $_nv (global.get $_p))
+  (global.set $_p (i32.add (global.get $_p) (i32.const 0)))
+  (local.set $__f0 (global.get $_p))
+  (global.set $_p (i32.add (global.get $_p) (i32.const 8)))
+  (i32.store offset=0 (local.get $__f0) (i32.const 0))
+  (i32.store offset=4 (local.get $__f0) (local.get $_nv))
+  (local.set $__r3 (global.get $_p))
+  (global.set $_p (i32.add (global.get $_p) (i32.const 8)))
+  (i32.store offset=0 (local.get $__r3) (i32.const 1))
+  (i32.store offset=4 (local.get $__r3) (local.get $_nv))
+  (call_indirect (type $_t3) (local.get $__f0) (i32.const 41) (local.get $__r3) (i32.const 0))
+)
+(func $_f0 (param $_nv i32) (param $x i32) (param $_k1 i32) (result i32) (local $_x2 i32) (local $__k1 i32)
+  (local.set $_nv (i32.load offset=4 (local.get $_nv)))
+  (local.set $_x2 (i32.add (local.get $x) (i32.const 1)))
+  (local.set $_nv (global.get $_p))
+  (global.set $_p (i32.add (global.get $_p) (i32.const 12)))
+  (i32.store offset=0 (local.get $_nv) (local.get $x))
+  (i32.store offset=4 (local.get $_nv) (local.get $_k1))
+  (i32.store offset=8 (local.get $_nv) (local.get $_x2))
+  (local.set $__k1 (i32.load offset=0 (local.get $_k1)))
+  (call_indirect (type $_t2) (local.get $_k1) (local.get $_x2) (local.get $__k1))
+)
+(func $_r3 (param $_nv i32) (param $_x4 i32) (result i32) 
+  (local.set $_nv (i32.load offset=4 (local.get $_nv)))
+  (local.get $_x4)
+)
+)
 \end{lstlisting}
 
-We see that other keywords are use instead of \icode{def}. Moreover, we see \icode{malloc} and \icode{store} combinations instead of records. The first function call is to integer constant \icode{0} instead of \icode{_f0}.
+We see that our program has become quite large. Moreover, we notice that \icode{i32.load} and \icode{i32.store} are used instead of records. The first function call on the last line of the body of the \icode{_start} function is to an integer constant \icode{0}, instead of the original function name \icode{_f0}.
 
 \section{\label{section:summarycps}Chapter Summary}
 In this chapter we have shown how to build a compiler that translates \icode{Lam} into \icode{Wat}. We used three data types: \icode{Lam}, \icode{Cps}, and \icode{Wat}. By applying the transformations \icode{str2lam}, \icode{lam2cps}, \icode{cps2cps}, and \icode{cps2wat} to a well formatted lambda calculus string, we obtain a low-level language output close to WebAssembly. To examine the transformations we provide pretty-printed output to more easily show the difference between compiler passes. By looking at two example lambda expressions we tracked the state of our program throughout its compilation.
@@ -359,9 +398,12 @@ In this chapter we have shown how to build a compiler that translates \icode{Lam
 We have identified problems with the transformations on the data types and the data types itself. These are summarized as follows:
 
 \begin{itemize}
-\item Complex specification of control flow in \icode{l2c}
-\item No types to indicate change of \icode{Cps} after \icode{c2c}
-\item Duplicate constructors in \icode{Cps} and \icode{Wat}
+\item Complex specification of control flow in \icode{l2c}\\
+\icode{l2c} is itself written in CPS. We used the continuation monad to try and hide this fact, however the function requires us to expose the metacontinuation. This leads to a confusing specification of control flow where the programmer needs to constantly switch between continuation and metacontinuation.
+\item No types to indicate change of \icode{Cps} after \icode{c2c}\\
+Closure conversion has type \icode{c2c :: Cps -> WriterT [(String,[String],Cps)] (Reader [String]) Cps}. If we ignore the monadic effects for a moment we obtain the simpler type \icode{([(String,[String],Cps)],Cps)}. The \icode{Cps} data type is free to contain \icode{FIX} expressions. We want to guarantee that it does not and function are thus no longer nested. All function definitions should be contained in the function list and their bodies should be made up of expression containing only addition, records, and application.
+\item Duplicate constructors in \icode{Cps} and \icode{Wat}\\
+If we look at both data types we see that addition and application constructors match one-to-one. We would like to only transform \icode{RECORD} expressions into \icode{Malloc} expressions.
 \end{itemize}
 
 In the next chapter we will try to alleviate these shortcomings of the first version of our compiler by proposing a new data type: command trees.

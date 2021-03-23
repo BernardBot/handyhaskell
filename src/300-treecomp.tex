@@ -8,19 +8,19 @@ In this chapter we propose command trees as an improvement upon the \icode{Cps} 
 \begin{gather*}
   String \xto{str2lam}\\
   Lam \xto{lam2tree}\\
-  Tree (Block :+: Fresh :+: Fun :+: Base) Val \xto{hBlock}\\
-  Tree (Fresh :+: Fun :+: Base) Val \xto{hFresh}\\
-  Tree (Fun :+: Base) Val \xto{hClosure}\\
-  Tree (Record :+: Fun :+: Base) Val \xto{hRecord}\\
-  Tree (Malloc :+: Fun :+: Base) Val \xto{hFun}\\
-  ([(String,[String],Tree (Malloc :+: Base) Val), Tree (Malloc :+: Base) Val \xto{tree2wat}\\
+  T (Block :+: Fresh :+: Fun :+: Base) \xto{hBlock}\\
+  T           (Fresh :+: Fun :+: Base) \xto{hFresh}\\
+  T                     (Fun :+: Base) \xto{hClosure}\\
+  T          (Record :+: Fun :+: Base) \xto{hRecord}\\
+  T          (Malloc :+: Fun :+: Base) \xto{hFun}\\
+  ([(String,[String],T (Malloc :+: Base))], T (Malloc :+: Base)) \xto{tree2wat}\\
   Wat
 \end{gather*}
 \caption{LamToWat Version 2: compiler organization}
 \label{fig:lam2watv2org}
 \end{figure}
 
-We notice that our compiler consist of more transformations than before. The increase in compiler steps does not mean an increase in complexity, but an increase in explicitness. Some steps are almost trivial but the new type of our \icode{Tree} let's the programmer know what has been transformed. We see that constructors for terms and for effects are mixed, e.g., \icode{Fresh} for fresh variable generation and \icode{Fun} for function syntax. Command trees represent both these things by syntax. Their difference becomes apparent when handling them with for example \icode{hFresh}.
+We use the type synonym \icode{type T cmd = Tree cmd Val} to show the essence of the transformations. We notice that our compiler consist of more transformations than before. The increase in compiler steps does not mean an increase in complexity, but an increase in explicitness. Some steps are almost trivial but the new type of our \icode{Tree} let's the programmer know what has been transformed. We see that constructors for terms and for effects are mixed, e.g., \icode{Fresh} for fresh variable generation and \icode{Fun} for function syntax. Command trees represent both these things by syntax. Their difference becomes apparent when handling them with for example \icode{hFresh}.
 
 This chapter is structured in the same manner as the previous chapter: we will first discuss the new \icode{Tree} data type and then examine the \icode{Tree} transformations.
 

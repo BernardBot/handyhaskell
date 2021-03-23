@@ -96,7 +96,7 @@ instance Functor (F f) where
   fmap g (F f h) = F f (g . h)
 \end{lstlisting}
 
-If we extend this idea to the free monad we obtain the freer monad. The functor the command trees in this thesis use is of a more specialized nature related to \icode{Cps} and \icode{Val}.
+If we extend this idea to the free monad we obtain the freer monad. The functor the command tree in this thesis uses is of a more specialized nature related to \icode{Cps} and \icode{Val}.
 
 \begin{lstlisting}[language=Haskell]
 data G f a where
@@ -111,30 +111,120 @@ Command trees can thus also be derived from the free monad which itself arises w
 \section{\label{section:denotationalsemantics}Modular Denotational Semantics}
 In this section we will give a short introduction to modular denotational semantics and then show how it relates to the work on the LamToWat compiler in this thesis. We will begin by stating some definitions. Denotational semantics is a method of giving meaning to programs by constructing mathematical objects which we often call 'values'. A programming language consists of multiple interacting parts called 'terms', like a function module or an arithmetic module. Terms can be given corresponding values separately. Then the meaning of the combined modules which make up a language is simply the sum or composition of these mappings. Originally there have been two popular approaches to solving this problem: algebraic effects \cite{DBLP:conf/tacs/CartwrightF94} and monad transformers \cite{DBLP:conf/popl/LiangHJ95}. To give meaning to a program we write a program called an 'interpreter' that maps terms in each module to their respective denotation.
 
-A denotational semantics is made up of three things: terms, values, and effects. We represent all three with Haskell constructs. A semantics is modular when are able to split and extend all three components. In Haskell open unions give us the power to do this for terms and values. To model effects we will need monads: either monad transformers or the free monad depending on which approach we choose. They arise as a solution to the unstable denotation problem.
+A denotational semantics is made up of three things: terms, values, and effects. We represent all three with Haskell constructs. A semantics is modular when are able to split and extend all three components. In Haskell open unions give us the power to do this for terms and values. To model effects we will need monads: either monad transformers or the free monad depending on which approach we choose. % They arise as a solution to the unstable denotation problem.
 
 % SEE: temp.hs in LamToWat
 % example: unstable....
 % TODO (blog post?) -- show connection via type classes
-Now we will give a n example of a modular denotational semantics for the \icode{Lam} language we are already familiar with. We will illustrate the relation between monad transformers and algebraic effects \cite{DBLP:conf/haskell/SchrijversPWJ19}. One can be translated into the other and vice-versa. Both approaches allow one to construct an interpreter for \icode{Lam}. We will use Haskell typeclasses to highlight the relation by providing instances either.
+Now we will give an example of a modular denotational semantics for a simple language that can manipulate one memory cell \icode{fetch, set} and do addition \icode{add, int}. We will illustrate the relation between monad transformers and algebraic effects \cite{DBLP:conf/haskell/SchrijversPWJ19}. One can be translated into the other and vice-versa. Both approaches allow one to construct an interpreter for our toy language. We will use Haskell typeclasses to represent modular interfaces for terms and highlight the relation by providing instances for both. The typeclasses are defined as follows
 
-% why did we use denotational semantics to write a compiler?
-Denotational semantics are very useful because it leads to a method of proving equality of terms of a language. When two terms have the same denotational value, they have the same meaning and one can be replaced by the other. This gives rise to many optimizations, which are provably correct.
+\begin{lstlisting}[language=Haskell]
+class Cell d where
+  fetch :: d
+  set :: d -> d
+
+class Addition d where
+  add :: d -> d -> d
+  int :: Int -> d
+\end{lstlisting}
+
+The domain of our language will simply be Haskell integers \icode{Int}. We said before that our domain must also be extendible, we can also do that here by using open unions and describing integers as an element of the union like so: \icode{Int :<: dom => ... dom ...}. However, this would lead to syntactic overhead which would only hinder the illustrative purposes of this example.
+
+The monad transformer approach uses the state monad transformer to implement the effects of the \icode{Cell} typeclass. It is included in the \icode{mtl} package and is defined as follows, where \icode{s} is the type of the internal state, \icode{m} is a monad, and \icode{a} is the return type.
+
+\begin{lstlisting}[language=Haskell]
+newtype StateT s (m :: * -> *) a = StateT {runStateT :: s -> m (a, s)}
+\end{lstlisting}
+
+We can supply (modular) instances for both our typeclasses by adding a \icode{MonadState} constraint, which is a typeclass in itself. This means that we get access to the operations \icode{get, put}, which are very similar to \icode{fetch, set}.
+
+\begin{lstlisting}[language=Haskell]
+instance MonadState Int m => Cell (m Int) where
+  fetch = get
+  set d = do
+    d' <- d
+    put d'
+    return d'
+
+instance MonadState Int m => Addition (m Int) where
+  add a b = do
+    i <- a
+    j <- b
+    return (i + j)
+  int = return
+\end{lstlisting}
+
+The Algebraic Effects approach requires a bit more preliminary work, because the monad is not taken from a package. We first define a new version of the operational/free monad that is specific to our domain of integers. We also define two command representing the \icode{get, put} from the state monad transformer. We create smart constructors for both called \icode{get'} and \icode{put'}, respectively.
+
+\begin{lstlisting}[language=Haskell]
+data Freer' cmd d where
+  Pure :: d -> Freer' cmd d
+  Impure :: cmd -> (Int -> Freer' cmd d) -> Freer' cmd d
+
+data Cmd = Get | Put Int
+\end{lstlisting}
+
+We can now give instances for our typeclasses, which look almost the same. We now contrain our commands instead of an effect typeclass.
+
+\begin{lstlisting}[language=Haskell]
+instance Cmd :<: cmd => Cell (Freer' cmd Int) where
+  fetch = get'
+  set d = do
+    d' <- d
+    put' d'
+    
+instance Cmd :<: cmd => Addition (Freer' cmd Int) where
+  add a b = do
+    i <- a
+    j <- b
+    return (i + j)
+  int = return
+\end{lstlisting}
+
+We will also have to define a handler for \icode{Cmd} commands called \icode{hCmd} as follows.
+
+\begin{lstlisting}[language=Haskell]
+hCmd :: Cmd :<: cmd => Freer' cmd a -> Int -> Freer' cmd (a, Int)
+hCmd (Pure d)           s = Pure (d,s)
+hCmd (Impure cmd k) s = case prj cmd of
+  Just Get     -> hCmd (k s) s
+  Just (Put s) -> hCmd (k s) s
+  _            -> Impure cmd (\ d -> hCmd (k d) s)
+\end{lstlisting}
+
+% CONCLUSION comparison
+We see that both approaches allow us to define instances for our language terms modularly. Both approaches use constraints to make the instances modular: monad transformers use typeclass constraints, while algebraic effects use contraints on the open union of commands.
+
+Why did we use modular denotational semantics to write a compiler? Denotational semantics are very useful because they lead to a method of proving equality of terms of a language. When two terms have the same denotational value, they have the same meaning and one can be replaced by the other. This gives rise to many optimizations, which are provably correct.
 
 One of the goals of a compiler is to optimize code, thus one can see where denotational semantics comes in. Moreover, it is important that the meaning of a program is not changed during compilation. In this thesis we have tried to extend this concept of denotational semantics from interpreters to compilers. In the first version of the compiler we used the approach of monad transformers. In the second version we used algebraic effects represented by command trees.
 
-\section{\label{section:cps}Continuation-passing Style}
-
-% why did we choose cps as baseline and why did we use cps based commmand tree
-% blog post?
-
 \section{\label{section:commandtrees}Command Tree Improvements}
 % intro
+In this section we will explore the design space for command trees and discusss the shortcomings of the second version of LamToWat. During the development of the LamToWat compiler a number of different command trees were examined to see if they could provide us with a replacement for \icode{Cps}. We will discuss some of the relevant ones here.
+
+\subsection{\label{subsection:proginterface}Programmer Interface}
+% blocks
 Although command trees provide a useful abstraction for language implementers, it does require knowledge of the block model for control flow. In the original version of LamToWat CPS conversion is implemented using a metacontinuation. This metacontinuation indicates what a program does next. When we transform a application we have to construct a return point function and pass it as the last argument to the new application. These manipulations of control flow become even more non-trivial when implementing imperative language constructs such as \icode{while} and \icode{for}. Moreover, when we have to use multiple metacontinuations in case we want to throw exceptions or break from a \icode{while} loop, the bookkeeping of metacontinuations becomes cumbersome. Command trees help the programmer somewhat by having these metacontinuations live inside the tree. The language implementer will still need to wrap certain parts of code inside a block and fetch the right continuation at the right point. The real burden is now put on the compiler writer, who has to compile the command tree. This requires juggling of the internalized metacontinuations and though it may be simpler than the alternative, it is not simple in itself.
 
+% cps similar
 Command trees are very similar to \icode{Cps} and can even be replaced by them. The added value of command trees is better pattern matching and more flexibility in the commands it uses. However, in the LamToWat implementation we choose commands that match \icode{Cps} almost one-to-one. The IR transformations remain mostly the same. One could argue that the command trees should be compiled to \icode{Cps} instead, allowing for reuse of the original compiler code. This could provide an improved front-end of the compiler with a \icode{Cps} based back-end.
 
-% discuss original command tree and problems with types
-Command trees originally had more types, but these proved to make compilation more difficult. The goal was to make the transformations type-preserving, meaning that if a program has a type before the transformation then the transformed program has a matching transformed type. In concrete terms it means that if you write a well-typed program and compile it, the compiled program will also be well-typed. The compiler writer will have to define the transformations on both the data type itself and its type. In addition, the programmer will have to prove to the typechecker that the transformed expression has the correct type. 
+% TODO: separation
+Freer monads and open unions are better used separately instead of combining them with command trees.
 
-These added requirements on behalf of the compiler writer make the actual implementation very hard. This could partly be a attributed to the type system of the metalanguage (Haskell), which does not have 'real' dependent types. It is for example not trivial to prove that if you concatenate a \icode{Vec n a} and a \icode{Vec m a} the resulting type will be \icode{Vec (m + n) a)} \autocite{10.1145/2578854.2503786}. Typing the transformations of CPS is not a new problem and has been solved by a multiple authors \autocite{DBLP:conf/popl/MorrisettWCG98, DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07}. Keeping these transformation both type-preserving and easy to write in a real metalanguage is more complicated.
+% \subsection{\label{subsection:ctreetype}Command Tree Types}
+% % discuss original command tree and problems with types
+% % - mapping over subcontinuations: foo (Node cmd ks k) = Node cmd (fmap foo ks) (fmap foo k)
+% % - abstract over values (Cmd v)
+% % - nested cmds (fun, block)
+% % - update environment for generic type in hClosure -> typeclass?
+% % - fresh variables vs. asgn/set
+% Command trees originally had more types, but these proved to make compilation more difficult. The goal was to make the transformations type-preserving, meaning that if a program has a type before the transformation then the transformed program has a matching transformed type. In concrete terms it means that if you write a well-typed program and compile it, the compiled program will also be well-typed. The compiler writer will have to define the transformations on both the data type itself and its type. In addition, the programmer will have to prove to the typechecker that the transformed expression has the correct type.
+
+% The original command tree proposed by \citeauthor{commandtreespoulsen} is as follows. It uses dependent types to indicate a relation between a command, its subcontinuations and join-point.
+
+% \begin{lstlisting}[language=Haskell]
+% \end{lstlisting}
+
+% % These added requirements on behalf of the compiler writer make the actual implementation very hard. This could partly be a attributed to the type system of the metalanguage (Haskell), which does not have 'real' dependent types. It is for example not trivial to prove that if you concatenate a \icode{Vec n a} and a \icode{Vec m a} the resulting type will be \icode{Vec (m + n) a)} \autocite{10.1145/2578854.2503786}. Typing the transformations of CPS is not a new problem and has been solved by a multiple authors \autocite{DBLP:conf/popl/MorrisettWCG98, DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07}. Keeping these transformation both type-preserving and easy to write in a real metalanguage is more complicated.
