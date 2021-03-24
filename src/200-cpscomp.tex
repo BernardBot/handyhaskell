@@ -163,7 +163,15 @@ We can print \icode{Wat} as 'real' WebAssembly that can be compiled and ran by W
 Transformations or compiler passes of LamToWat will be implemented as Haskell functions. These functions will transform the data types of the previous section. A transformation can convert a data type to a different data type, or to the same data type with certain properties. The (side-)effects of the transformations are modeled using monads \autocite{DBLP:conf/lics/Moggi89}. Monads allow us to write effectful code in a pure functional language like Haskell. We can combine monadic effects by using monad transformers \autocite{DBLP:conf/popl/LiangHJ95}. We have the convention that we name this combined monad for effects \icode{M}.
 
 \subsection{\label{subsection:cpsconvert}CPS Conversion}
-CPS conversion will transform the \icode{Lam} data type into the \icode{Cps} data type. By converting our program to continuation-passing style we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and have a continuation that indicates the order of expressions. Fresh variables are generated using the state monad. The extra argument to our function is also called a metacontinuation: a continuation in the metalanguage and will be provided by the continuation monad. We use Haskell's \icode{do}-notation to write our monadic conversion function in an imperative style. Our monad \icode{M} will have the following type, the order of transformers is arbitrary.
+CPS conversion will transform the \icode{Lam} data type into the \icode{Cps} data type. By converting our program to continuation-passing style we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and use a continuation that indicates the order of expressions.
+
+\citeauthor{DBLP:books/daglib/0022396} describes a CPS conversion function that takes an extra metacontinuation as argument. It also assumes some way of generating fresh variable names, which is not further specified. In haskell the signature of such a fuction would look as follows. It uses a state monad for fresh variable name generation.
+
+\begin{lstlisting}[language=Haskell]
+Lam -> (Val -> State Int Cps) -> State Int Cps
+\end{lstlisting}
+
+Our CPS conversion function uses the continuation monad to provide the continuation. Fresh variables are still generated using the state monad. We use Haskell's \icode{do}-notation to write our monadic conversion function in an imperative style. Our monad \icode{M} will have the following type.
 
 \begin{lstlisting}[language=Haskell]
 type M = ContT Cps (State Int)
@@ -171,8 +179,6 @@ type M = ContT Cps (State Int)
 
 \icode{l2c} is split up into cases for each constructor of \icode{Lam}. The values \icode{Var} and \icode{Int} are converted to CPS values. To convert the anonymous function \icode{Lam} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the metacontinuation \icode{c}. We convert the body of the function \icode{e}, giving it a metacontinuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{FIX} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
 
-% show normal defintion (with extra argument)
-% show greenbook function (chapter 5)
 \begin{lstlisting}[language=Haskell]
 l2c :: Lam -> M Val
 l2c (Var x) = return (VAR x)
@@ -238,8 +244,6 @@ type M =  WriterT [Fun] (Reader [String])
 
 Care must be taken to ensure that the closest variable binds (lexical scope). This means that when we enter a function we bring into scope the environment variables that are not arguments of the function, see the helper function \icode{open}.
 
-% adjust M
-% cite Haskell
 \begin{lstlisting}[language=Haskell]
 c2c :: Cps -> M Cps
 c2c (FIX fs e) = do
