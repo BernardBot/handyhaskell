@@ -373,7 +373,8 @@ Let's look at a final example for the function \icode{(\ x -> x + 1) 41}. We hav
   (i32.store offset=4 (local.get $__r3) (local.get $_nv))
   (call_indirect (type $_t3) (local.get $__f0) (i32.const 41) (local.get $__r3) (i32.const 0))
 )
-(func $_f0 (param $_nv i32) (param $x i32) (param $_k1 i32) (result i32) (local $_x2 i32) (local $__k1 i32)
+(func $_f0
+ (param $_nv i32) (param $x i32) (param $_k1 i32) (result i32) (local $_x2 i32) (local $__k1 i32)
   (local.set $_nv (i32.load offset=4 (local.get $_nv)))
   (local.set $_x2 (i32.add (local.get $x) (i32.const 1)))
   (local.set $_nv (global.get $_p))
@@ -402,7 +403,7 @@ We have identified problems with the transformations on the data types and the d
 \item Complex specification of control flow in \icode{l2c}\\
 \icode{l2c} is itself written in CPS. We used the continuation monad to try and hide this fact, however the function requires us to expose the metacontinuation. This leads to a confusing specification of control flow where the programmer needs to constantly switch between continuation and metacontinuation.
 \item No types to indicate change of \icode{Cps} after \icode{c2c}\\
-Closure conversion has type \icode{c2c :: Cps -> WriterT [(String,[String],Cps)] (Reader [String]) Cps}. If we ignore the monadic effects for a moment we obtain the simpler type \icode{([(String,[String],Cps)],Cps)}. The \icode{Cps} data type is free to contain \icode{FIX} expressions. We want to guarantee that it does not and function are thus no longer nested. All function definitions should be contained in the function list and their bodies should be made up of expression containing only addition, records, and application.
+Closure conversion has type \icode{c2c :: Cps -> WriterT [Fun] (Reader [String]) Cps}. If we ignore the monadic effects for a moment we obtain the simpler type \icode{([Fun],Cps)}. The \icode{Cps} data type is free to contain \icode{FIX} expressions. We want to guarantee that it does not and function are thus no longer nested. All function definitions should be contained in the function list and their bodies should be made up of expression containing only addition, records, and application.
 \item Duplicate constructors in \icode{Cps} and \icode{Wat}\\
 If we look at both data types we see that addition and application constructors match one-to-one. We would like to only transform \icode{RECORD} expressions into \icode{Malloc} expressions.
 \end{itemize}
