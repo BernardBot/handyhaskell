@@ -203,11 +203,16 @@ One of the goals of a compiler is to optimize code, thus one can see where denot
 % intro
 In this section we will explore the design space for command trees and discusss the shortcomings of the second version of LamToWat. During the development of the LamToWat compiler a number of different command trees were examined to see if they could provide us with a replacement for \icode{Cps}. We will discuss some of the relevant ones here.
 
-\subsection{Block Based Control Flow}
 % blocks
 Although command trees provide a useful abstraction for language implementers, it does require knowledge of the block model for control flow. In the original version of LamToWat CPS conversion is implemented using a metacontinuation. This metacontinuation indicates what a program does next. When we transform a application we have to construct a return point function and pass it as the last argument to the new application. These manipulations of control flow become even more non-trivial when implementing imperative language constructs such as \icode{while} and \icode{for}. Moreover, when we have to use multiple metacontinuations in case we want to throw exceptions or break from a \icode{while} loop, the bookkeeping of metacontinuations becomes cumbersome. Command trees help the programmer somewhat by having these metacontinuations live inside the tree. The language implementer will still need to wrap certain parts of code inside a block and fetch the right continuation at the right point. The real burden is now put on the compiler writer, who has to compile the command tree.
 
-\subsection{Improved and Divided Cps}
+% optimazitions
+It was possible to implement a varation of closure conversion that was optimized for simplicity, nevertheless it is impossible to implement one that optimizes for closure size without breaking the semantic nature of command trees. Command trees do not have access to syntactic variable names and thus can not create minimal closures. Normally, we find the smallest set of variables that are needed to create a closure for a function. We do this by traversing the function body and collecting free variables when we encounter them. This is only possible when we use the same trick we used for hoisting in \icode{hFun}: assume we use a subset of commands that carry their own variable names. Arguably, this is a hack that defeats the semantic nature of command trees instead of utilize it.
+
+% hoisting
+We can only hoist after we have reduced the set of commands to syntactic constructors. Since it is the last IR transformation in our compiler this is not a real problem. However, if we would want to do a non-local transformation on the command tree at some other point in the compilation process, we would need to 'syntactify' our command tree entirely. After this non-local transformation we would like to get back to a semantic version of our command tree, where join-points actually bind variables. It is not trivial to go from the syntactic to the semantic command trees. There would need to be a substitution function that captures all syntactic variables.
+
+\subsection{Improved and Partitioned Cps}
 % cps similar
 Command trees are very similar to \icode{Cps} and can even be replaced by them. The added value of command trees is better pattern matching and more flexibility in the commands it uses. However, in the LamToWat implementation we choose commands that match \icode{Cps} almost one-to-one. The IR transformations remain mostly the same. One could argue that the command trees should be compiled to a modular version of \icode{Cps} instead, allowing for reuse of the original compiler code. This could provide an improved front-end of the compiler with a \icode{Cps} based back-end. We can split \icode{Cps} into a front-end part and a back-end part. The front-end would be monadic and have effects for generating fresh variables and getting and setting continutations. It would be defined as follows.
 
@@ -226,7 +231,7 @@ data CpsM a
   | BLOCK (Cps Val) (Val -> Cps a)
 \end{lstlisting}
 
-Our original constructors are here combined with embedded effects. These effects were represented by monad transformers in the first version in the compiler and with the two command \icode{Fresh} and \icode{Block} in the second version. Embedding them inside gives us all the features of a command tree without overhead of projecting and injecting commmands. The continuations of \icode{ADD,RECORD,SELECT} have been changed to have type \icode{Val -> Cps a} instead of binding their names directly. We (monadic) bind expressions together by entering their continuation. For example the monadic bind of \icode{ADD} is defined as \icode{ADD v1 v2 k >>= f = ADD v1 v2 (\ x -> k x >>= f)}. We can define the same smart constructors as for the command tree. This time, however, they are simply constructors and not very smart. If we take \icode{ADD} as example again we get the constructor by combining it with \icode{DONE}: \icode{add v1 v2 = ADD v1 v2 DONE}.
+Our original constructors are here combined with embedded effects. These effects were represented by monad transformers in the first version in the compiler and with the two command \icode{Fresh} and \icode{Block} in the second version. Embedding them inside gives us all the features of a command tree without overhead of projecting and injecting commmands. The continuations of \icode{ADD,RECORD,SELECT} have been changed to be semantic and have type \icode{Val -> Cps a} instead of being syntactic and binding their names directly. We (monadic) bind expressions together by entering their continuation. For example the monadic bind of \icode{ADD} is defined as \icode{ADD v1 v2 k >>= f = ADD v1 v2 (\ x -> k x >>= f)}. We can define the same smart constructors as for the command tree. This time, however, they are simply constructors and not very smart. If we take \icode{ADD} as example again we get the constructor by combining it with \icode{DONE}: \icode{add v1 v2 = ADD v1 v2 DONE}.
 
 \begin{lstlisting}[language=Haskell]
 data Base a
@@ -243,66 +248,68 @@ data Fun a
 \end{lstlisting}
 
 % TODO: more, examples?
-The back-end of will consist of three data types, which represent the different modules of \icode{Cps}. We combine these with a different version of the open unions we discussed in subsection \ref{subsection:openunion} and the functor fixpoint \icode{Fix}. Again we use smart constructors to inject and project our data type.
+The back-end of will consist of three data types, which represent the different modules of \icode{Cps}. We combine these with a different version of the open unions we discussed in subsection \ref{subsection:openunion} and the functor fixpoint \icode{Fix}. For the back-end we do use smart constructors to inject and project our data type.
 
-\subsection{Typed Command Tree}
-Command trees originally had more types, but these proved to make compilation more difficult. The goal was to make the transformations type-preserving, meaning that if a program has a type before the transformation then the transformed program has a matching transformed type. In concrete terms it means that if you write a well-typed program and compile it, the compiled program will also be well-typed. The compiler writer will have to define the transformations on both the data type itself and its type. In addition, the programmer will have to prove to the typechecker that the transformed expression has the correct type.
+The compiler steps will look like a combination of the first and second version of the compiler with an additional step that translates between the two \icode{Cps} partitions. We are now able to indicate what the steps really do, by pattern matching on one specific part and have more precise types.
 
-The original command tree proposed by \citeauthor{commandtreespoulsen} is as follows. It uses dependent types to indicate a relation between a command, its subcontinuations and join-point.
+% \subsection{Original Command Tree}
+% Command trees originally had more types, but these proved to make compilation more difficult. The goal was to make the compiler transformations type-preserving, meaning that if a program has a type before the transformation then the transformed program has a matching transformed type. In concrete terms it means that if you write a well-typed program and compile it, the compiled program will also be well-typed. The compiler writer will have to define the transformations on both the data type itself and its type. In addition, the programmer will have to prove to the typechecker that the transformed expression has the correct type.
 
-\begin{lstlisting}[language=Haskell]
-data Tree sig a where
-  Leaf :: a -> Tree sig a
-  Node :: sig n b p r q ->
-          Vec n (p -> Tree sig r) ->
-          Option b (q -> Tree sig a) ->
-          Tree sig a
-\end{lstlisting}
+% The original command tree proposed by \citeauthor{commandtreespoulsen} is as follows. It uses dependent types to indicate a relation between a command, its subcontinuations and join-point.
 
-The main difference is the use of signature \icode{sig}, which has type. A command tree does not know what set of commands is used. However, it does encode strong type constraints on its subcontinuations and continuation. To enforce these constraints we use a signature \lstinlineb{sig}. This way a command tells the command tree what comes after itself. More formally a signature has type:
+% \begin{lstlisting}[language=Haskell]
+% data Tree sig a where
+%   Leaf :: a -> Tree sig a
+%   Node :: sig n b p r q ->
+%           Vec n (p -> Tree sig r) ->
+%           Option b (q -> Tree sig a) ->
+%           Tree sig a
+% \end{lstlisting}
 
-\begin{lstlisting}[language=Haskell]
-sig :: Nat -> Bool -> * -> * -> * -> *
-\end{lstlisting}
+% The main difference is the use of a signature \icode{sig}. A command tree does not know what set of commands is used. However, it does encode strong type constraints on its subcontinuations and continuation. To enforce these constraints we use the signature. This way a command tells the command tree what comes after itself. More formally a signature has type:
 
-A signature instance \lstinlineb{sig n b p r q} tells us the following things:
+% \begin{lstlisting}[language=Haskell]
+% sig :: Nat -> Bool -> * -> * -> * -> *
+% \end{lstlisting}
 
-\begin{itemize}
-\item The tag of the command and its enclosed parameters.
-\item The number of subcontinuations \lstinlineb{n}.
-\item If the command has a continuation.
-\item The argument \lstinlineb{p} and return type \lstinline{r} of the subcontinuations.
-\item The argument type \lstinline{q} of the continuation.
-\end{itemize}
+% A signature instance \lstinlineb{sig n b p r q} tells us the following things:
 
-Without commands we can not do anything with our command trees. We used a set of commands that reflect the constructors from the \ac{CPS} datatype. We defined a number of extra commands that will help us compile. Just as in with the command tree used in the second version of the compiler we will use constructor like \icode{add} etc. to make working with this tree more pleasant.
+% \begin{itemize}
+% \item The tag of the command and its enclosed parameters.
+% \item The number of subcontinuations \lstinlineb{n}.
+% \item If the command has a continuation.
+% \item The argument \lstinlineb{p} and return type \lstinline{r} of the subcontinuations.
+% \item The argument type \lstinline{q} of the continuation.
+% \end{itemize}
 
-\begin{lstlisting}[language=Haskell]
-data Cmd :: Nat -> Bool -> * -> * -> * -> * where
-  -- cps commands
-  Fix    :: Vec n (String, [String]) -> Cmd n       'True  ()    Val   ()
-  App    :: Val -> [Val] ->             Cmd 'Z      'False Void  Void  Val 
-  Plus   :: Val -> Val ->               Cmd 'Z      'True  Void  Void  Val
-  Record :: [Val] ->                    Cmd 'Z      'True  Void  Void  Val
-  Select :: Int -> Val ->               Cmd 'Z      'True  Void  Void  Val
-  -- extra compilation commands        
-  Get    :: String ->                   Cmd 'Z      'True  Void  Void  Val
-  Put    :: String -> Val ->            Cmd 'Z      'True  Void  Void  ()
-  Block  ::                             Cmd ('S 'Z) 'True  ()    Val   Val
-  Fresh  :: String ->                   Cmd 'Z      'True  Void  Void  String
-\end{lstlisting}
+% Without commands we can not do anything with our command trees. We used a set of commands that reflect the constructors from the CPS data type. We defined a number of extra commands that will help us compile. Just as in with the command tree used in the second version of the compiler we used constructor like \icode{add} etc. to make working with this tree more pleasant.
 
-We can see that almost all our original constructors from the \ac{CPS} data type are here. Except the \icode{DONE} constructor. This constructor will be modeled by the \icode{Leaf} of the command tree. The \icode{Val} type remains the same. Our four extra commands represent state, help with command concatenation, and generate fresh variables. You may note that these operations can be implemented using standard Haskell monads (like the state monad). However, this would lead to using monad transformers on the tree itself, while also needing to produce a tree as a result, preventing us from exploiting the monadic nature of the command tree. This embedding leads to more declarative code.
+% \begin{lstlisting}[language=Haskell]
+% data Cmd :: Nat -> Bool -> * -> * -> * -> * where
+%   -- cps commands
+%   Fix    :: Vec n (String, [String]) -> Cmd n       'True  ()    Val   ()
+%   App    :: Val -> [Val] ->             Cmd 'Z      'False Void  Void  Val 
+%   Plus   :: Val -> Val ->               Cmd 'Z      'True  Void  Void  Val
+%   Record :: [Val] ->                    Cmd 'Z      'True  Void  Void  Val
+%   Select :: Int -> Val ->               Cmd 'Z      'True  Void  Void  Val
+%   -- extra compilation commands        
+%   Get    :: String ->                   Cmd 'Z      'True  Void  Void  Val
+%   Put    :: String -> Val ->            Cmd 'Z      'True  Void  Void  ()
+%   Block  ::                             Cmd ('S 'Z) 'True  ()    Val   Val
+%   Fresh  :: String ->                   Cmd 'Z      'True  Void  Void  String
+% \end{lstlisting}
 
-We take a look at the signatures of the commands to see how they are structured. The \icode{Block} and \icode{Fix} command are the only ones that have subcontinuations. The \icode{Void} types show that when there is no subcontinuation, these subcontinuations will not have any members. \icode{Fix} has a subcontinuation for every function definition. This is required by the constructor itself as the natural number \icode{n} appears in both the function name with arguments and subcontinuations. The \icode{App} command does not have a continuation, which will lead to some trouble when trying to concatenate it with other commands. The return type of commands indicates that commands will bind to a variable \icode{Val} or only produce a side-effect \icode{()}.
+% We can see that almost all our original constructors from the \ac{CPS} data type are here. Except the \icode{DONE} constructor. This constructor will be modeled by the \icode{Leaf} of the command tree. The \icode{Val} type remains the same. Our four extra commands represent state, help with command concatenation, and generate fresh variables. You may note that these operations can be implemented using standard Haskell monads (like the state monad). However, this would lead to using monad transformers on the tree itself, while also needing to produce a tree as a result, preventing us from exploiting the monadic nature of the command tree. This embedding leads to more declarative code.
 
-We have written a version of LamToWat that uses this notion of command trees. However, the new \icode{Tree} did not improve the compilation process and made the job of the programmer quite a bit harder for the following reasons:
+% We take a look at the signatures of the commands to see how they are structured. The \icode{Block} and \icode{Fix} command are the only ones that have subcontinuations. The \icode{Void} types show that when there is no subcontinuation, these subcontinuations will not have any members. \icode{Fix} has a subcontinuation for every function definition. This is required by the constructor itself as the natural number \icode{n} appears in both the function name with arguments and subcontinuations. The \icode{App} command does not have a continuation, which will lead to some trouble when trying to concatenate it with other commands. The return type of commands indicates that commands will bind to a variable \icode{Val} or only produce a side-effect \icode{()}.
 
-\begin{itemize}
-\item Our generic case does no longer work, because the return type of subcontinuations \icode{r} is not known without matching on a command.
-\item Nesting of commands requires correct types.
-\item Continuations are defined as functions in the metalanguage instead of syntactic constructs with bound names.
-\end{itemize}
+% We have written a version of LamToWat that uses this notion of command trees. However, the new \icode{Tree} did not improve the compilation process and made the job of the programmer quite a bit harder for the following reasons:
 
-% TODO
-CPS-conversion still works fine with the typed command tree. Trouble starts when trying to handle the \icode{Block} construct like in \icode{hBlock}. 
+% \begin{itemize}
+% \item Our generic case does no longer work, because the return type of subcontinuations \icode{r} is not known without matching on a command.
+% \item Nesting of commands requires correct types.
+% \item Continuations are defined as functions in the metalanguage instead of syntactic constructs with bound names.
+% \end{itemize}
+
+% % TODO
+% CPS-conversion still works fine with the typed command tree. Trouble starts when trying to handle the \icode{Block} construct like in \icode{hBlock}.
