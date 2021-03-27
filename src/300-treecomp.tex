@@ -2,25 +2,25 @@
 
 \chapter{\label{chap:treecomp}Compiling with Command Trees}
 
-In this chapter we propose command trees as an improvement upon the \icode{Cps} data type of the previous chapter. The new compiler uses the \icode{Tree} data type as IR. Compiler passes on the IR will have a type that looks like \icode{pass :: arg -> Tree cmd Val -> Tree cmd' Val}. \icode{arg} is used to model an effect. For example when closure converting \icode{arg} is an environment of values of type \icode{[(String,Val)]}. These extra arguments are hidden by instantiating them with a starting value. For closure conversion the starting value would be an empty list. The differences between \icode{cmd} and \icode{cmd'} indicate what a pass does. Some care needs to be taken when splitting up commands into separate data types. We want to put constructors together which are transformed by the same compiler pass in order to maximize the information presented by the type of the pass.
+In this chapter we propose command trees as an improvement upon the \icode{Cps} data type of the previous chapter. The new compiler uses the \icode{Tree} data type as IR. Compiler passes on the IR will have a type that looks like \icode{pass :: arg -> Tree cmd Val -> Tree cmd' Val}. Leaf nodes of the tree contain values of type \icode{Val}. \icode{arg} is used to model an effect. For example when closure converting \icode{arg} is an environment of values of type \icode{[(String,Val)]}. These extra arguments are hidden by instantiating them with a starting value. For closure conversion the starting value would be an empty list. The differences between \icode{cmd} and \icode{cmd'} indicate what a pass does. Some care needs to be taken when splitting up commands into separate data types. We want to put constructors together which are transformed by the same compiler pass in order to maximize the information presented by the type of the pass.
 
 \begin{figure}
 \begin{gather*}
   String \xto{str2lam}\\
   Lam \xto{lam2tree}\\
-  T (Block :+: Fresh :+: Fun :+: Base) \xto{hBlock}\\
-  T           (Fresh :+: Fun :+: Base) \xto{hFresh}\\
-  T                     (Fun :+: Base) \xto{hClosure}\\
-  T          (Record :+: Fun :+: Base) \xto{hRecord}\\
-  T          (Malloc :+: Fun :+: Base) \xto{hFun}\\
-  ([(String,[String],T (Malloc :+: Base))], T (Malloc :+: Base)) \xto{tree2wat}\\
+  T (Block + Fresh + Fun + Base) \xto{hBlock}\\
+  T         (Fresh + Fun + Base) \xto{hFresh}\\
+  T                 (Fun + Base) \xto{hClosure}\\
+  T        (Record + Fun + Base) \xto{hRecord}\\
+  T        (Malloc + Fun + Base) \xto{hFun}\\
+  ([(String,[String],T (Malloc + Base))], T (Malloc + Base)) \xto{tree2wat}\\
   Wat
 \end{gather*}
 \caption{LamToWat Version 2: compiler organization}
 \label{fig:lam2watv2org}
 \end{figure}
 
-We use the type synonym \icode{type T cmd = Tree cmd Val} to show the essence of the transformations. We notice that our compiler consist of more transformations than before. The increase in compiler steps does not mean an increase in complexity, but an increase in explicitness. Some steps are almost trivial but the new type of our \icode{Tree} gives the programmer information about the transformations. We see that types for constructors for terms and for effects are mixed, e.g., \icode{Fresh} for fresh variable generation and \icode{Fun} for function syntax. Command trees represent both these things by syntax. Their difference becomes apparent when handling them with for example \icode{hFresh}. We combine different commands by using open unions (\icode{:+:}), these are discussed in subsection \ref{subsection:openunion}. You may already guess what the other commands are related to. We will see them in action in the next sections.
+We use the type synonym \icode{type T cmd = Tree cmd Val} to show the essence of the transformations. We notice that our compiler consist of more transformations than before. The increase in compiler steps does not mean an increase in complexity, but an increase in explicitness. Some steps are almost trivial but the new type of our \icode{Tree} gives the programmer information about the transformations. We see that types for constructors for terms and for effects are mixed, e.g., \icode{Fresh} for fresh variable generation and \icode{Fun} for function syntax. Command trees represent both these things by syntax. Their difference becomes apparent when handling them with for example \icode{hFresh}. We combine different commands by using open unions ($+$ in the figure, and \icode{:+:} in code), these are discussed in subsection \ref{subsection:openunion}. You may already guess what the other commands are related to. We will see them in action in the next sections.
 
 This chapter is structured in the same manner as the previous chapter: we will first discuss the new \icode{Tree} data type and then examine the \icode{Tree} transformations.
 
