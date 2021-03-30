@@ -8,7 +8,7 @@ In this chapter we propose command trees as an improvement upon the \icode{Cps} 
 \begin{gather*}
   String \xto{str2lam}\\
   Lam \xto{lam2tree}\\
-  Tree Cmd Val \xto{tree2tps}\\
+  Tree \em Cmd \em Val \xto{tree2tps}\\
   T (Fix + Base) \xto{hClosure}\\
   T (Record + Fix + Base) \xto{hRecord}\\
   T (Malloc + Fix + Base) \xto{swap}\\
@@ -100,10 +100,8 @@ Let's see how our example \icode{(\ x -> x + 1) 41)} translates to a semantic co
   
 \begin{lstlisting}[language=Haskell]
 Node (Fix (("f", ["x"]) ::: Nil)) ((\ () ->
- Node (Plus (VAR "x") (NUM 1)) Nil (Some (\ n ->
- Leaf n)))
- ::: Nil) (Some (\ () ->
-Node (App (VAR "f") [NUM 41]) Nil None))
+  Node (Add (VAR "x") (INT 1)) Nil (Some (\ n -> Leaf n))) ::: Nil) (Some (\ () ->
+Node (App (VAR "f") [INT 41]) Nil None))
 \end{lstlisting}
 
 Just like with \icode{Cps} we have a printed version of semantic command trees. The printed version is exactly the same for our simple example. However, semantic command trees have extra compilation commands: \icode{GetK}, \icode{SetK}, \icode{Block}, and \icode{Fresh}. These are represented with the following notation.
@@ -119,11 +117,18 @@ x = fresh "x"
 Syntactic command trees have, as their name implies, syntactic representation of name binding in their constructors. The signature types of continuations are dropped to make the tree specific to the notion of values in \icode{Cps}: \icode{Val}. The signature types that indicate the number of subcontinuations and the presence of a join-point remain. We require a function to translate from our semantic command trees to syntactic command trees. Moreover, a new set of commands need to be made for the syntactic trees. A syntactic command tree specialized for CPS \icode{Tps} is defined by a GADT as follows.
 
 \begin{lstlisting}[language=Haskell]
+data Tps sig a where
+  Leaf :: a -> Tps sig a
+  Node :: sig n b
+       -> Vec n (Tps sig Val)
+       -> Option b (String, Tps sig a)
+       -> Tps sig a
 \end{lstlisting}
 
 The signature of \icode{Tps} has the following type.
 
 \begin{lstlisting}[language=Haskell]
+type Sig = Nat -> Bool -> *
 \end{lstlisting}
 
 A signature instance \icode{sig n b} tells us the following things:
@@ -137,11 +142,31 @@ A signature instance \icode{sig n b} tells us the following things:
 The set of syntactic commands does no longer require the commands related to compilation. These commands are given a syntactic representation within the tree. Therefore, our set of commands will match the original CPS commands almost completely with the exception of the \icode{DONE} expression. The commands are separated into modules. The separation is made with the compilation steps that follow in mind, which are mainly concerned with transforming functions.
 
 \begin{lstlisting}[language=Haskell]
+data Base :: Sig where
+  App :: Val -> [Val] -> Base Z False
+  Add :: Val -> Val ->   Base Z True 
+
+data Record :: Sig where
+  Record :: [Val] ->      Record Z True
+  Select :: Int -> Val -> Record Z True
+
+data Fix :: Sig where
+  Fix :: Vec n (String,[String]) -> Fix n True
+
+data Malloc :: Sig where
+  Malloc :: Int ->               Malloc Z True
+  Load   :: Int -> Val ->        Malloc Z True
+  Store  :: Int -> Val -> Val -> Malloc Z True
+
+data VoidCmd :: Sig where
 \end{lstlisting}
 
-If we look at the example \icode{(\ x -> x + 1) 41}, we will see that it is very similar to the semantic counterpart. The main difference is that function variables have been replaced with strings. The printed version of syntactic command trees is exactly the same as that for \icode{Cps}, because the compilation commands have been dropped.
+If we look at the example \icode{(\ x -> x + 1) 41}, we will see that it is very similar to the semantic counterpart. The main difference is that semantic variables have been replaced with strings. The printed version of syntactic command trees is exactly the same as that for \icode{Cps}, because the compilation commands have been dropped.
 
 \begin{lstlisting}[language=Haskell]
+Node (L (Fix (("f", ["x"]) ::: Nil)))
+((Node (R (Add (VAR "x") (INT 1))) Nil (Some ("n", Leaf (VAR "n")))) ::: Nil) (Some ("",
+Node (R (App (VAR "f") [INT 41])) Nil None))
 \end{lstlisting}
 
 \subsubsection{\label{subsection:openunion}Open Unions or Extensible Sums}
@@ -168,11 +193,19 @@ add_ v1 v2 x = liftT (inj (Add v1 v2)) Nil x (Leaf ())
 We will rarely use the original commands and mostly use their smart constructors when writing our tree transformations. The \icode{(\ x -> x + 1) 41} example will be represented as follows. Notice that it is written with \icode{do} notation, because we are working inside a monad. The type of the command of this tree is not concretely instantiated. Instead two constraints are added and we get a tree of type \icode{(Fix :<: cmd, Base :<: cmd) => Tps cmd Val}, indicating that both \icode{Fix} and \icode{Base} commands are injected somewhere in \icode{cmd}.
 
 \begin{lstlisting}[language=Haskell]
+fix_ (("f",["x"]) ::: Nil)
+  ((add (VAR "x") (INT 1) "n" (done (VAR "n"))) ::: Nil)
+app (VAR "f") [INT 41]
 \end{lstlisting}
 
 Extensible sums should behave like sets, but are implemented as binary trees. This means that the order of commands matters, e.g., \icode{A :+: B} is not the same as \icode{B :+: A} in the eyes of the Haskell type system. To mitigate this we can write helper functions that transform the structure of our extensible sums. In LamToWat we use the \icode{swap} function which is defined as follows. 
 
 \begin{lstlisting}[language=Haskell]
+fix_ (("f",["x"],do
+      add_ (VAR "x") (INT 1) "n"
+      done (VAR "n"))
+      ::: Nil)
+app (VAR "f") [INT 41]
 \end{lstlisting}
 
 \section{\label{section:treensforms}Tree Transformations}
@@ -233,6 +266,34 @@ type M = StateT Int (Reader [(String,Val)])
 \end{lstlisting}
 
 \begin{lstlisting}[language=Haskell]
+t2t :: Tree Cmd Val -> M (Tps (Fix :+: Base :+: VoidCmd) Val)
+t2t (Leaf x) = return (done x)
+t2t (Node (T.Add v1 v2) Nil (Some k)) = do
+  x <- fresh "x"
+  k' <- t2t (k (VAR x))
+  return (add v1 v2 x k')
+t2t (Node (T.App v vs) Nil None) =
+  return (app v vs)
+t2t (Node (T.Fix fxs) bs (Some k)) = do
+  bs' <- mapM (\ b -> t2t (b ())) bs
+  k' <- t2t (k ())
+  return (fix' fxs bs' k')
+t2t (Node (T.SetK x v) Nil (Some k)) =
+  local ((x,v):) (t2t (k ()))
+t2t (Node (T.GetK x) Nil (Some k)) = do
+  nv <- ask
+  case lookup x nv of
+    Just v -> t2t (k v)
+    Nothing -> error (x ++ " is not in env " ++ show nv)
+t2t (Node T.Block (b ::: Nil) (Some k)) = do
+  r <- fresh "r"
+  x <- fresh "x"
+  b' <- local (("_nxt",LABEL r):) (t2t (do v <- b (); T.app (LABEL r) [v]))
+  k' <- t2t (k (VAR x))
+  return (fix' ((r,[x]) ::: Nil) (k' ::: Nil) b')
+t2t (Node (T.Fresh x) Nil (Some k)) = do
+  f <- fresh x
+  t2t (k f)
 \end{lstlisting}
 
 The compilation of the \icode{Fresh} command seems trivial, because we use the helper function \icode{fresh}. This helper function should not be confused by the sugared version of the \icode{Fresh} command. This function updates the state integer of \icode{M} and returns a fresh variable (in this case a string).
@@ -247,6 +308,39 @@ Now that we have eliminated our effectful commands we can closure convert our tr
 Using monadic helper functions we can make this transformation somewhat easier to read. We see that the transformation only really effects \icode{Fix} and \icode{App} nodes. The type of \icode{hClos'} shows that we transform \icode{Fix} and \icode{Base} commands by adding a \icode{Record} command to our command tree. In the organization of our compiler we see the function \icode{hClos} used instead of \icode{hClos'}. \icode{hClos} is simply \icode{hClos'} instantiated with an empty list, e.g., \icode{hClos = hClos' []}.
 
 \begin{lstlisting}[language=Haskell]
+hClos' :: [String] -> Tps (Fix :+: Base :+: cmd) Val -> Tps (Record :+: Fix :+: Base :+: cmd) Val
+hClos' nv (Node (L (Fix fxs)) bs (Some (_,k))) = do
+  let fxs' = mapV (\ (f,as) -> (f,"_nv":as)) fxs
+      bs' = zipWithV (\ (f,as) b -> do
+                       select_ 1 (VAR "_nv") "_nv"
+                       zipWithM_ (\ i x ->
+                                    if x `elem` as
+                                    then return ()
+                                    else select_ i (VAR "_nv") x) [0..] nv
+                       hClos' (nv ++ as) b) fxs bs
+  fix' fxs' bs' (hClos' nv k)
+
+hClos' nv (Node (R (L (App v vs))) Nil None) = do
+  record_ (map VAR nv) "_nv"
+  vs' <- mapM (\ v -> case v of
+                  LABEL f -> do
+                    let _f = "_" ++ f
+                    record_ [v,VAR "_nv"] _f
+                    return (VAR _f)
+                  _       -> return v) vs
+  case v of
+    LABEL f -> do
+      let fc = "_" ++ f
+      record_ [v,VAR "_nv"] fc
+      app v (VAR fc:vs')
+    VAR f -> do
+      let fp = "_" ++ f
+      select_ 0 v fp
+      app (VAR fp) (v:vs')
+hClos' nv (Leaf v) = Leaf v
+hClos' nv (Node cmd ks k) =
+  Node (R cmd) (fmap (hClos' nv) ks)
+    (fmap (\ (x,k) -> (x, hClos' (nv ++ if null x then [] else [x]) k)) k)
 \end{lstlisting}
 
 We see how our nested example \icode{(\ x y -> x + y) 13 29} looks after closure conversion. Functions have an extra \icode{_nv} argument. Bodies of functions are prefixed with opening the closure and postfixed with creating closures before calling another function. In the previous version of LamToWat we did not get to see this rendering of our example, because it was hoisted immediately.
@@ -257,6 +351,15 @@ We see how our nested example \icode{(\ x y -> x + y) 13 29} looks after closure
 Before we hoist our function definitions to the top level we can transform our \icode{Record} commands into \icode{Malloc} commands. Here we see that we can fix our shortcoming of repeated constructors quite easily with command trees. We can focus on a particular command and translate it into its lower-level counterpart. In this case only \icode{Record} as truly translated as \icode{Select} and \icode{Load} have a one-to-one mapping.
 
 \begin{lstlisting}[language=Haskell]
+hRecord :: Tps (Record :+: cmd) Val -> Tps (Malloc :+: cmd) Val
+hRecord (Node (L (Record vs)) Nil (Some (x,k))) = do
+  malloc_ (length vs) x
+  zipWithM_ (\ i v -> store_ i (VAR x) v) [0..] vs
+  hRecord k
+hRecord (Node (L (Select i v)) Nil (Some (x,k))) =
+  load i v x (hRecord k)
+hRecord (Leaf v) = Leaf v
+hRecord (Node (R cmd) ks k) = Node (R cmd) (fmap hRecord ks) (fmap (fmap hRecord) k)
 \end{lstlisting}
 
 Hoisting is done with the \icode{hFix} function. We will need to be able to open the join-point of a \icode{Node} of our command tree in order to be able to hoist, because it is a non-local transformation. A non-local transformation affects the entire tree. In the case of hoisting we are chopping up the tree into individual commands, separating the \icode{Fix} commands and putting them into a list, and glueing the other commands back together to form a new tree.
@@ -264,12 +367,42 @@ Hoisting is done with the \icode{hFix} function. We will need to be able to open
 The resulting type is a tuple of a command tree function list and a command tree representing something like the actual program. The type clearly indicates that functions no longer contain other functions. We only have \icode{Tps} without \icode{Fix} commands in combination with a function name (\icode{String}) and function arguments (\icode{[String]}) to represent a function.
 
 \begin{lstlisting}[language=Haskell]
+hFix :: Tps (Fix :+: cmd) Val -> ([(String,[String],Tps cmd Val)],Tps cmd Val)
+hFix (Leaf v) = ([],Leaf v)
+hFix (Node (R cmd) ks k) = case fmap (fmap hFix) k of
+  Some (x,(fs,k')) -> (fs++fs',Node cmd ks' (Some (x,k')))
+  None             -> (    fs',Node cmd ks' None)
+  where ks' = fmap (snd . hFix) ks
+        fs' = concat (toList (fmap (fst . hFix) ks))
+hFix (Node (L (Fix fxs)) bs (Some ("", k))) = let (fs,k') = hFix k in (fs'++fs,k')
+  where fs' = concatMap (\ ((f,as),b) -> let (fs,b') = hFix b in (f,as,b') : fs) (zip (toList fxs) (toList bs))
 \end{lstlisting}
 
 \subsection{\label{subsection:emit2}Emitting}
 The emit step now becomes even more trivial, as we have also eliminated records from our command tree and replaced them with malloc commands. We include this step for completeness and testing purposes. We could use the command tree output by \icode{hFix} to generate WebAssembly code. The mapping is one-to-one for expressions: every remaining tree command has a \icode{Wat} counterpart. However, the transformation of \icode{Val}s does need to change labels into integers.
 
 \begin{lstlisting}[language=Haskell]
+type Tps' = Tps (Malloc :+: Base :+: VoidCmd) Val
+
+tps2wat :: ([(String,[String],Tps')],Tps') -> Wat
+tps2wat (fs,e) = Module fs' (go e)
+  where ns :: [String]
+        ns = map (\ (f,as,b) -> f) fs
+
+        fs' :: [(String,[String],Exp)]
+        fs' = map (\ (f,as,b) -> (f,as,go b)) fs
+
+        go :: Tps' -> Exp
+        go (Leaf v)                                    = W.Done (vo v)
+        go (Node (L (Malloc i))      Nil (Some (x,k))) = W.Malloc i x (go k)
+        go (Node (L (Load i v))      Nil (Some (x,k))) = W.Load i (vo v) x (go k)
+        go (Node (L (Store i s t))   Nil (Some (_,k))) = W.Store i (vo s) (vo t) (go k)
+        go (Node (R (L (Add v1 v2))) Nil (Some (x,k))) = W.Add (vo v1) (vo v2) x (go k)
+        go (Node (R (L (App v vs)))  Nil None)         = W.App (vo v) (map vo vs)
+        
+        vo v = case v of
+          LABEL x -> INT (fromJust (x `elemIndex` ns))
+          _       -> v
 \end{lstlisting}
 
 \section{\label{section:commandtrees}Command Tree Improvements}

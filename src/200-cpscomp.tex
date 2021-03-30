@@ -111,16 +111,12 @@ The \icode{Wat} language is a hierarchical, high-level assembly language and a s
 
 We have chosen \icode{Wat} as the output language of LamToWat, because it is a relatively high-level language without first-class functions. It can be easily translated to WebAssembly, but still has enough abstraction to be able to target other languages. The absence of first-class functions requires LamToWat to actually compile the \icode{Lam} language, which does have this feature. By keeping the output of LamToWat as a Haskell data type, we can compare the semantics of the \icode{Lam}, \icode{Cps}, and \icode{Wat} data types more easily.
 
-We see that \icode{Wat} is quite similar to \icode{Cps}, this makes it easy to translate from \icode{Cps} to \icode{Wat} after closure conversion and hosting. The \icode{RECORD} and \icode{SELECT} constructors are replaced with \icode{Malloc}, \icode{Store}, and \icode{Load}. The \icode{LABEL} constructor is removed from \icode{Val}, because functions are now represented by integers serving as an index into the module function list. \icode{FIX} is replaced with a top-level \icode{Module}, ensuring that there are no nested functions anymore.
+We see that \icode{Wat} is quite similar to \icode{Cps}, this makes it easy to translate from \icode{Cps} to \icode{Wat} after closure conversion and hosting. The \icode{RECORD} and \icode{SELECT} constructors are replaced with \icode{Malloc}, \icode{Store}, and \icode{Load}. The \icode{LABEL} constructor from \icode{Val} is not used, because functions are now represented by integers serving as an index into the module function list. \icode{FIX} is replaced with a top-level \icode{Module}, ensuring that there are no nested functions anymore.
 
 The \icode{Dom}ain of \icode{Wat} consists of integers serving as numbers, function pointers, and heap pointers. Instead of creating record values, our three heap operators will manipulate a piece of memory of constant size. This means that just like in real WebAssembly we can access out of bounds memory and crash our program.
 
 \begin{lstlisting}[language=Haskell]
 data Wat = Module [(String,[String],Exp)] Exp
-
-data Val
-  = INT Int
-  | VAR String
 
 data Exp
   = Malloc Int String Exp
