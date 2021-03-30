@@ -2,166 +2,213 @@
 
 \chapter{\label{chap:treecomp}Compiling with Command Trees}
 
-In this chapter we propose command trees as an improvement upon the \icode{Cps} data type of the previous chapter. The new compiler uses the \icode{Tree} data type as IR. Compiler passes on the IR will have a type that looks like \icode{pass :: arg -> Tree cmd Val -> Tree cmd' Val}. Leaf nodes of the tree contain values of type \icode{Val}. \icode{arg} is used to model an effect. For example when closure converting \icode{arg} is an environment of values of type \icode{[(String,Val)]}. These extra arguments are hidden by instantiating them with a starting value. For closure conversion the starting value would be an empty list. The differences between \icode{cmd} and \icode{cmd'} indicate what a pass does. Some care needs to be taken when splitting up commands into separate data types. We want to put constructors together which are transformed by the same compiler pass in order to maximize the information presented by the type of the pass.
+In this chapter we propose command trees as an improvement upon the \icode{Cps} data type of the previous chapter. The new compiler uses the \icode{Tree} and \icode{Tps} data type as IR. Compiler passes on the IR will have a type that looks like \icode{pass :: arg -> Tps cmd Val -> Tps cmd' Val}. Leaf nodes of the tree contain values of type \icode{Val}. \icode{arg} is used to model an effect. For example when closure converting \icode{arg} is a list of variable names in scope of type \icode{[String]}. These extra arguments are hidden by instantiating them with a starting value. For closure conversion the starting value would be an empty list. The differences between \icode{cmd} and \icode{cmd'} indicate what a pass does. Some care needs to be taken when splitting up commands into separate data types. We want to put constructors together which are transformed by the same compiler pass in order to maximize the information presented by the type of the pass.
 
 \begin{figure}
 \begin{gather*}
   String \xto{str2lam}\\
   Lam \xto{lam2tree}\\
-  T (Block + Fresh + Fun + Base) \xto{hBlock}\\
-  T         (Fresh + Fun + Base) \xto{hFresh}\\
-  T                 (Fun + Base) \xto{hClosure}\\
-  T        (Record + Fun + Base) \xto{hRecord}\\
-  T        (Malloc + Fun + Base) \xto{hFun}\\
-  ([(String,[String],T (Malloc + Base))], T (Malloc + Base)) \xto{tree2wat}\\
+  Tree Cmd Val \xto{tree2tps}\\
+  T (Fix + Base) \xto{hClosure}\\
+  T (Record + Fix + Base) \xto{hRecord}\\
+  T (Malloc + Fix + Base) \xto{swap}\\
+  T (Fix + Malloc + Base) \xto{hFix}\\
+  ([(String,[String],T (Malloc + Base))], T (Malloc + Base)) \xto{tps2wat}\\
   Wat
 \end{gather*}
 \caption{LamToWat Version 2: compiler organization}
 \label{fig:lam2watv2org}
 \end{figure}
 
-We use the type synonym \icode{type T cmd = Tree cmd Val} to show the essence of the transformations. We notice that our compiler consist of more transformations than before. The increase in compiler steps does not mean an increase in complexity, but an increase in explicitness. Some steps are almost trivial but the new type of our \icode{Tree} gives the programmer information about the transformations. We see that types for constructors for terms and for effects are mixed, e.g., \icode{Fresh} for fresh variable generation and \icode{Fun} for function syntax. Command trees represent both these things by syntax. Their difference becomes apparent when handling them with for example \icode{hFresh}. We combine different commands by using open unions ($+$ in the figure, and \icode{:+:} in code), these are discussed in subsection \ref{subsection:openunion}. You may already guess what the other commands are related to. We will see them in action in the next sections.
+We use the type synonym \icode{type T cmd = Tps cmd Val} to show the essence of the transformations. We notice that our compiler consist of more transformations than before. The increase in compiler steps does not mean an increase in complexity, but an increase in explicitness and declarativity. Some steps are almost trivial but the new type of \icode{Tps} gives the programmer information about the transformations. We combine different commands by using open unions ($+$ in the figure, and \icode{:+:} in code), these are discussed in subsection \ref{subsection:openunion}. \icode{Tree} is used in the front-end of the compiler, while \icode{Tps} is used in the back-end. Why we use these two data types is explained in the next section. You may already guess what the other commands are related to. We will see them in action in the next sections.
 
-This chapter is structured in the same manner as the previous chapter: we will first discuss the new \icode{Tree} data type and then examine the \icode{Tree} transformations.
+This chapter is structured in the same manner as the previous chapter: we will first discuss the new \icode{Tree} and \icode{Tps} data types and then examine their transformations.
 
 \section{\label{section:commandtree}Command Trees}
-Command trees are a data type used to sequence (CPS) commands. A well known data type that is also capable of sequencing is a list. Command trees improve upon lists by adding subcontinuations, and by providing the ability to use the result of our command in the commands after that. Just like lists, command trees are monads. This allows us to bind command trees together easily and write functions using \icode{do}-notation. Commands themselves are a syntactic representations of a monadic computations. In simpler terms this can be described as the meaning of a command is something that is left to the programmer. What a command does is implemented later in a function sometimes called a handler. For example: the meaning of the \icode{Fresh} command is defined by the handler \icode{hFresh}.
+Command trees are a data type used to sequence commands. A well known data type that is also capable of sequencing is a list. Command trees improve upon lists by adding subcontinuations, and by providing the ability to use the result of our command in the commands after that. Just like lists, command trees are monads. This allows us to bind command trees together easily and write functions using \icode{do}-notation.
 
-Command trees are implemented using Haskell GADT. A GADT gives us the power to add more types to our IR. The notation of a GADT is somewhat different than the notation of a normal data type. After the \icode{data} keyword we specify a name and type parameters, a \icode{where} keyword follows. Then the different constructors of the GADT are declared. The constructors are given a name followed by \icode{::}. The types of the arguments follow, separated by \icode{->}. Finally, we declare the constructor with its type parameters, which can relate to the types of the arguments.
+Commands themselves are a syntactic representations of a monadic computations. In simpler terms this can be described as the meaning of a command is something that is left to the programmer. What a command does is implemented later in a function sometimes called a handler. Command trees are used to model effects in denotational semantics. We can write handlers for effects to create an interpreter. In this chapter we try to extend this approach to writing a compiler. We discuss the role of command trees in denotational semantics in more detail in section \ref{section:denotationalsemantics}.
 
-The structure and monadic nature of command trees have already been discussed in \citetitle{commandtreespoulsen} \autocite{commandtreespoulsen}. A modified version of the discussion will be restated here for completeness. A command tree consists of two constructors: \icode{Leaf} and \icode{Node}. \icode{Leaf a} is the smallest form of command tree that exists and simply returns the value \icode{a}. A \icode{Node cmd ks k} command tree is somewhat more complex and is made up of three parts:
+The structure and monadic nature of command trees have already been discussed in \citetitle{commandtreespoulsen} \autocite{commandtreespoulsen}. A modified version of the discussion will be restated in this chapter for completeness. A command tree consists of two constructors: \icode{Leaf} and \icode{Node}. \icode{Leaf a} is the smallest form of command tree that exists and simply returns the value \icode{a}. A \icode{Node cmd ks k} command tree is somewhat more complex and is made up of three parts:
 
 \begin{itemize}
-\item A command \icode{cmd},
+\item A command \icode{cmd} that may have a signature,
 \item A list of subcontinuations \icode{ks},
 \item An optional continuation (also called join-point) \icode{k}.
 \end{itemize}
 
+We will call the data type \icode{Tree} a semantic command tree and \icode{Tps} a syntactic command tree. This means that continuations will have a arrow type \icode{a -> Tree cmd b} in \icode{Tree} and a tuple type where the left element is a \icode{String} indicating the variable name \icode{(String,Tps cmd b)} in \icode{Tps}. Syntactic command trees allow us to analyse variable bindings syntactically, something we need for (free) variable analysis. LamToWat needs this information to perform closure conversion.
+
+Command trees are implemented using Haskell's GADTs. A GADT gives us the power to add more types to our IR. The notation of a GADT is somewhat different than the notation of a normal data type. After the \icode{data} keyword we specify a name and type parameters, a \icode{where} keyword follows. Then the different constructors of the GADT are declared. The constructors are given a name followed by \icode{::}. The types of the arguments follow, separated by \icode{->}. Finally, we declare the constructor with its type parameters, which can relate to the types of the arguments.
+
+\subsection{\label{subsection:semantree}Semantic Command Tree}
+A semantic command tree \icode{Tree} is defined by a GADT as follows.
+
 \begin{lstlisting}[language=Haskell]
-data Tree cmd a where
-  Leaf :: a -> Tree cmd a
-  Node :: cmd
-       -> [Tree cmd Val]
-       -> Maybe (Val -> Tree cmd a)
-       -> Tree cmd a
+data Tree sig a where
+  Leaf :: a -> Tree sig a
+  Node :: sig n b p r q ->
+          Vec n (p -> Tree sig r) ->
+          Option b (q -> Tree sig a) ->
+          Tree sig a
 \end{lstlisting}
 
-Our command tree is specialized to model the functionality of the \icode{Cps} data type. Subcontinuations will return \icode{Val} and the join-point will require a \icode{Val} to continue. Without commands we can not do anything with our command trees. We will use a set of commands that reflect the constructors from the \icode{Cps} data type. We also define a number of extra commands that will help us compile.
+A semantic command tree does not know what set of commands is used. However, it does encode strong type constraints on its subcontinuations and continuation. To enforce these constraints we use a signature \icode{sig}. This way a command tells the semantic command tree what comes after itself. More formally a signature has type:
 
 \begin{lstlisting}[language=Haskell]
--- cps commands
-data Base
-  = APP' Val [Val]
-  | ADD' Val Val String
-
-data Record
-  = RECORD' [Val] String
-  | SELECT' Int Val String
-
-data Fun = FUN' String [String]
-
--- compilation commands
-data Fresh = FRESH' String
-
-data Block
-  = BLOCK'
-  | SETK' String Val
-  | GETK' String
-
-data Malloc
-  = MALLOC' Int String
-  | LOAD' Int Val String
-  | STORE' Int Val Val
+type Sig = Nat -> Bool -> * -> * -> * -> *
 \end{lstlisting}
 
-We can see that almost all our original constructors from the \icode{Cps} data type are represented, split up into three separate data types. We use a single \icode{FUN} command instead of a mutual recursive \icode{FIX} in order to make the transformations a bit simpler. The \icode{DONE} constructor will be modeled by the \icode{Leaf} constructor of the command tree. To generate fresh variables we use the \icode{Fresh} commands, to model control flow we use \icode{Block}, and to compile to \icode{Wat} we use \icode{Malloc}. The \icode{Val} data type is the same as in \icode{Cps}.
+A signature instance \icode{sig n b p r q} tells us the following things:
 
-Our example lambda function \icode{(\ x -> x + 1) 41} is represented by a command tree as follows. We see that we use \icode{L} and \icode{R} to make use of both the \icode{Fun} and \icode{Base} commands. The type of this tree is \icode{Tree (Fun :+: Base) Val}. The order of injection (see \ref{subsection:openunion}) is arbitrary and if we swap the \icode{L} and \icode{R} the type of the tree would be \icode{Tree (Fun :+: Base) Val}. When using smart constructors we will not have to choose.
+\begin{itemize}
+\item The tag of the command and its enclosed parameters.
+\item The number of subcontinuations \icode{n}.
+\item If the command has a continuation.
+\item The argument \icode{p} and return type \icode{r} of the subcontinuations.
+\item The argument type \icode{q} of the continuation.
+\end{itemize}
+
+Without commands we can not do anything with our command trees. We will use a set of commands that reflect the constructors from the \icode{Cps} data type. We also define a number of extra commands that will help us compile. This progammifying or treeifying of a command or request is called lifting. This is called so because we 'lift' the expression into the monad.
 
 \begin{lstlisting}[language=Haskell]
-Node (L (FUN' "f" ["x"]))
- [Node (R (ADD' (VAR "x") (INT 1) "r")) [] (Just (\ v ->
-  Leaf (VAR "r")))]
- (Just (\ f -> Node (R (APP' f [INT 41])) [] Nothing))
+data Cmd :: Sig where
+  -- cps commands
+  Add   :: Val -> Val ->               Cmd Z     True  Void  Void Val
+  App   :: Val -> [Val] ->             Cmd Z     False Void  Void Val
+  Fix   :: Vec n (String, [String]) -> Cmd n     True  ()    Val  ()
+  -- compilation commands
+  GetK  :: String ->                   Cmd Z     True  Val   Val  Val
+  SetK  :: String -> Val ->            Cmd Z     True  Val   Val  ()
+  Block ::                             Cmd (S Z) True  ()    Val  Val
+  Fresh :: String ->                   Cmd Z     True  Void  Void String
 \end{lstlisting}
 
-Pretty-printed trees will follow a similar notation as that of pretty-printed \icode{Cps}. The printed version of the example command tree is actually exactly the same as the one for \icode{Cps}.
+We can see that our original constructors \icode{Add}, \icode{App}, \icode{Fix} from the \icode{Cps} data type are here. Except the \icode{DONE} constructor will be modeled by \icode{Leaf}. The \icode{Val} type is the same as in \icode{Cps}. Our four extra commands represent a continuation store, command concatenation, and fresh variable name generation.
 
-\subsection{\label{subsection:openunion}Open Unions or Extensible Sums}
-In order to compile \icode{Lam} into \icode{Wat} we will have to make use of all our commands. We will combine our commands using an open union or extensible sum data type. An open union can be viewed as a list of data types. More precisely, it is a binary tree which has data types as leaf nodes. \icode{:+:} is right-associative and has two constructors \icode{L} and \icode{R}, which inject a data type into the left or right side of the tree, respectively. Note that we can nest instances of open unions to create open unions. Open unions make our command tree somewhat modular, because we can add new commands to an existing union to represent new language features.
+We take a look at the signatures of the commands to see how they are structured. The \icode{Block} and \icode{Fix} command are the only ones that have subcontinuations. The \icode{Void} type indicates that there is no subcontinuation. \icode{Fix} has a subcontinuation for every function definition. This is required by the constructor itself as the natural number \icode{n} appears in both the function name with arguments and subcontinuations. The \icode{App} command does not have a continuation, which will lead to some trouble when trying to concatenate it with other commands. The return type of commands indicates that commands will bind to a variable \icode{Val}, or only produce a side-effect \icode{()}.
+
+We use helper functions to remove boilerplate and make the transformations more readable, e.g., \icode{add}, \icode{app}, etc. These are simple sugar that lift expressions into command trees. For example, the \icode{Add} command has sugared version \icode{add}.
 
 \begin{lstlisting}[language=Haskell]
-data a :+: b = L a | R b
+add :: Val -> Val -> Tree Cmd Val
+add v1 v2 = Node (Plus v1 v2) Nil (Some Leaf)
 \end{lstlisting}
 
-If we would have a command of type \icode{Record :+: Base} a possible member is the command \icode{L (RECORD' [] "x")}. When our sums get larger it becomes quite cumbersome to write where a command is located in the sum, e.g., \icode{L (L (L ...))}. Moreover, we do not want to choose where our command is located in the open union, just that it is contained somewhere. Just like normal sums our extensible sums should be commutative to some extent, i.e., there should be no difference between \icode{Base :+: Record} and \icode{Record :+: Base}. Therefore we define a Haskell typeclass to inject and project data types into our open union. We can now write \icode{inj (RECORD' [] "x")} instead which have type \icode{Record :<: cmd => cmd}.
-
+Let's see how our example \icode{(\ x -> x + 1) 41)} translates to a semantic command tree. The translation is very similar to that of the \icode{Cps}. We use a \icode{Fix} command to create a function \icode{f} with argument \icode{x}. The body of this function adds \icode{x} and the number one \icode{1}. The continuation is a leaf node, which serves the same purpose as the \icode{DONE} constructor. The function name and arguments are separated by the function body, which is a vector of thunks (functions that take \icode{()} as argument). The continuation of our function node is an application node. Here we apply the function \icode{f} to the argument \icode{41}.
+  
 \begin{lstlisting}[language=Haskell]
-class sub :<: sup where
-  inj :: sub -> sup
-  prj :: sup -> Maybe sub
+Node (Fix (("f", ["x"]) ::: Nil)) ((\ () ->
+ Node (Plus (VAR "x") (NUM 1)) Nil (Some (\ n ->
+ Leaf n)))
+ ::: Nil) (Some (\ () ->
+Node (App (VAR "f") [NUM 41]) Nil None))
 \end{lstlisting}
 
-We use smart constructors and destructors to mitegate the syntactic overhead of projecting and injecting \autocite{DBLP:conf/haskell/WuSH14, DBLP:conf/popl/LiangHJ95} even further. For example to lift our \icode{ADD'} command into the command tree we can define the following function. The constraint \icode{Base :<: cmd} ensures that \icode{ADD'} is located somewhere in the commands of the command tree.
+Just like with \icode{Cps} we have a printed version of semantic command trees. The printed version is exactly the same for our simple example. However, semantic command trees have extra compilation commands: \icode{GetK}, \icode{SetK}, \icode{Block}, and \icode{Fresh}. These are represented with the following notation.
 
 \begin{lstlisting}[language=Haskell]
-add :: Base :<: cmd => Val -> Val -> String -> Tree cmd a
-add v1 v2 x = Node (inj (ADD' v1 v2 x)) [] (Just Leaf)
+x = getk y
+setk x y
+block x {}
+x = fresh "x"
 \end{lstlisting}
 
-Smart destructors are implemented using the \icode{project} function that extracts a command from a command tree \icode{Node}.
+\subsection{\label{subsection:syntree}Syntactic CPS Command Tree}
+Syntactic command trees have, as their name implies, syntactic representation of name binding in their constructors. The signature types of continuations are dropped to make non-local transformations of the tree manageable. The signature types that indicate the number of subcontinuations and the presence of a join-point remain. We require a function to translate from our semantic command trees to syntactic command trees. Moreover, a new set of commands need to be made for the syntactic trees. A syntactic command tree specialized for CPS \icode{Tps} is defined by a GADT as follows.
 
 \begin{lstlisting}[language=Haskell]
-project (Node cmd ks k) | Just cmd' <- prj cmd = Just (cmd',ks,k)
-project _ = Nothing
 \end{lstlisting}
 
-We use Haskell's pattern synonyms and view patterns extensions combined with \icode{project} to project our commands and their subcontinuations and join-point. For the \icode{ADD'} command this is implemented as follows.
+The signature of \icode{Tps} has the following type.
 
 \begin{lstlisting}[language=Haskell]
-pattern ADD v1 v2 x k <- (project -> Just (ADD' v1 v2 x, [], Just k))
 \end{lstlisting}
 
-We will rarely use the original commands and mostly use their smart constructors/destructors when writing our tree transformations. The \icode{(\ x -> x + 1) 41} example will be represented as follows. Notice that it is written with \icode{do} notation, because we are working inside a monad. The type of the command of this tree is not concretely instantiated. Instead two constraints are added and we get a tree of type \icode{(Fun :<: cmd, Base :<: cmd) => Tree cmd Val}, indicating that both \icode{Fun} and \icode{Base} commands are injected somewhere in \icode{cmd}.
+A signature instance \icode{sig n b} tells us the following things:
+
+\begin{itemize}
+\item The tag of the command and its enclosed parameters.
+\item The number of subcontinuations \icode{n}.
+\item If the command has a continuation.
+\end{itemize}
+
+The set of syntactic commands does no longer require the commands related to compilation. These commands are given a syntactic representation within the tree. Therefore, our set of commands will match the original CPS commands almost completely with the exception of the \icode{DONE} expression. The commands are separated into modules. The separation is made with the compilation steps that follow in mind, which are mainly concerned with transforming functions.
 
 \begin{lstlisting}[language=Haskell]
-do f <- fun "f" ["x"] (add (VAR "x") (INT 1) "r")
-   app f [INT 41]
+\end{lstlisting}
+
+If we look at the example \icode{(\ x -> x + 1) 41}, we will see that it is very similar to the semantic counterpart. The main difference is that function variables have been replaced with strings. The printed version of syntactic command trees is exactly the same as that for \icode{Cps}, because the compilation commands have been dropped.
+
+\begin{lstlisting}[language=Haskell]
+\end{lstlisting}
+
+\subsubsection{\label{subsection:openunion}Open Unions or Extensible Sums}
+In order to compile \icode{Lam} into \icode{Wat} we will have to make use of all our \icode{Tps} commands. We will combine our commands using an open union or extensible sum data type. An open union can be viewed as a list of data types. More precisely, it is a binary tree which has data types as leaf nodes. \icode{:+:} is right-associative and has two constructors \icode{L} and \icode{R}, which inject a data type into the left or right side of the tree, respectively. Note that we can nest instances of open unions to create open unions. Open unions make our command tree somewhat modular, because we can add new commands to an existing union to represent new language features.
+
+\begin{lstlisting}[language=Haskell]
+data (:+:) :: Sig -> Sig -> Sig where
+  L :: sigl n b -> (sigl :+: sigr) n b
+  R :: sigr n b -> (sigl :+: sigr) n b
+\end{lstlisting}
+
+\begin{lstlisting}[language=Haskell]
+class (sub :: Sig) :<: (sup :: Sig) where
+  inj :: sub n b -> sup n b
+\end{lstlisting}
+
+We use smart constructors to mitegate the syntactic overhead of injecting \autocite{DBLP:conf/haskell/WuSH14, DBLP:conf/popl/LiangHJ95} even further. For example to lift our \icode{Add} command into the command tree we can define the following function. The constraint \icode{Base :<: cmd} ensures that \icode{Add} is located somewhere in the commands of the command tree.
+
+\begin{lstlisting}[language=Haskell]
+add_ :: Base :<: cmd => Val -> Val -> String -> Tps cmd ()
+add_ v1 v2 x = liftT (inj (Add v1 v2)) Nil x (Leaf ())
+\end{lstlisting}
+
+We will rarely use the original commands and mostly use their smart constructors when writing our tree transformations. The \icode{(\ x -> x + 1) 41} example will be represented as follows. Notice that it is written with \icode{do} notation, because we are working inside a monad. The type of the command of this tree is not concretely instantiated. Instead two constraints are added and we get a tree of type \icode{(Fix :<: cmd, Base :<: cmd) => Tps cmd Val}, indicating that both \icode{Fix} and \icode{Base} commands are injected somewhere in \icode{cmd}.
+
+% TODO
+\begin{lstlisting}[language=Haskell]
+\end{lstlisting}
+
+Extensible sums should behave like sets, but are implemented as binary trees. This means that order of the commands matters, e.g., \icode{A :+: B} is not the same as \icode{B :+: A} in the eyes of the Haskell type system. To mitigate this we can write helper functions that transform the structure of our extensible sums. In LamToWat we use the \icode{swap} function which is defined as follows. 
+
+\begin{lstlisting}[language=Haskell]
 \end{lstlisting}
 
 \section{\label{section:treensforms}Tree Transformations}
 Transformations for the new version of LamToWat will be implemented as Haskell functions. Since command trees are monads, we will program mostly in the monad using \icode{do}-notation. 
 
 \subsection{\label{subsection:cpsconvert2}CPS Conversion}
-Using the \icode{Cps} commands, we can define an improved \icode{Cps} conversion. The function is easier to read and write. We no longer have a metacontinuation hidden inside a continuation monad. This simplifies the notation significantly. We still operate in a monad, however, this monad is the command tree. The order of our listed operations matches the order of our final program more closely. There are some details that spoil the declarativity of our conversion somewhat. The advantages and disadvantages of our new approach become clear when we examine the conversion of a lambda abstraction in comparison to the one in the previous version of LamToWat.
+Using \icode{Tree}, we can define an improved CPS conversion. The function is easier to read and write. We no longer have a metacontinuation hidden inside a continuation monad. This simplifies the notation significantly. We still operate in a monad, however, this monad is the command tree. The order of our listed operations matches the order of our final program more closely. There are some details that spoil the declarativity of our conversion somewhat. The advantages and disadvantages of our new approach become clear when we examine the conversion of a lambda abstraction in comparison to the one in the previous version of LamToWat.
 
 \begin{lstlisting}[language=Haskell]
-lam2tree :: Lam -> Tree (Block :+: Fresh :+: Fun :+: Base) Val
+lam2tree :: Lam -> Tree Cmd Val
 lam2tree (Var x) = return (VAR x)
-lam2tree (Int i) = return (INT i)
+lam2tree (Num i) = return (INT i)
 lam2tree (Lam x e) = do
-  VAR f <- fresh "f"
-  VAR k <- fresh "k"
-  fun f [x,k]
-    (do v <- lam2tree e
-        app (VAR k) [v])
+  f <- fresh "f"
+  k <- fresh "k"
+  fix ((f,[x,k],do
+           v <- lam2tree e
+           app (VAR k) [v])
+       ::: Nil)
+  return (LABEL f)
 lam2tree (App e1 e2) = block (do
   v1 <- lam2tree e1
   v2 <- lam2tree e2
   k <- getk "_nxt"
   app v1 [v2,k])
 lam2tree (Add e1 e2) = do
-  VAR x <- fresh "x"
   v1 <- lam2tree e1
   v2 <- lam2tree e2
-  add v1 v2 x
+  add v1 v2
 \end{lstlisting}
 
-We take a look at the conversion of \icode{Lam}. We generate a fresh function variable \icode{f} and continuation variable \icode{k}. We use these variables to create a function with name \icode{f} that has as argument the original variable and a continuation named \icode{k}. The body of the function will be the converted original body and a final statement that applies the continuation to the resulting variable. We no longer return a \icode{LABEL}, because this is implicitly returned by the function itself.
+We take a look at the conversion of \icode{Lam}. We generate a fresh function variable \icode{f} and continuation variable \icode{k}. We use these variables to create a function with name \icode{f} that has as argument the original variable and a continuation named \icode{k}. The body of the function will be the converted original body and a final statement that applies the continuation to the resulting variable. Finally, we return a \icode{LABEL} with the function name.
 
-When we convert our example lambda expression \icode{(\ x -> x + 1) 41} the result will be the following. The most notable novelty is the use of a \icode{block}. Blocks are used to bind parts of code together and replace the metacontinuation of the original version. If we take the code outside the block it would end with an application of \icode{_f1}. Since applications do not have a continuation, any code after it would be discarded. Since in this case the application is the last thing that happens it does not really matter, but when we more than one application in our expression it becomes a problem. Continuations will be dropped. This is not the behavior we want, so we use \icode{block}s instead.
+We convert our example lambda expression \icode{(\ x -> x + 1) 41} to obtain the following result. The most notable novelty is the use of a \icode{block}. Blocks are used to bind parts of code together and replace the metacontinuation of the original version. If we take the code outside the block it would end with an application of \icode{_f1}. Since applications do not have a continuation, any code after it would be discarded. In our case the application is the last thing that happens, so it does not really matter, but when we nest more than one application in our expression it becomes a problem. Continuations will be dropped. This is not the behavior we want, so we use \icode{block}s instead. We also see that there are still \icode{fresh} commands in the tree. These will be handled when transforming to \icode{Tps} in the next transformation.
 
-When we transform function application we need access to the next continuation and pass it to the transformed function \icode{_f1}. We obtain the next continuation with \icode{getk _nxt}. The variable \icode{_nxt} is set to the continuation of a block when entering that block. The old 'next' continuation is saved and restored when exiting the block. In this case the continuation is \icode{_b0}, which just returns the value given to it. We can see the resemblance with continuation functions and blocks. This is not incidental: blocks will be compiled into continuation functions. So why do we not just use continuation functions? Because we do not have access to continuations yet. We are still operating on \icode{Lam}, without the help of a continuation monad. After we have transformed into a command tree we will be able to access the continuation of a command. We also see that there are still \icode{fresh} commands in the tree. These will be handled in the compiler steps after blocks.
+When we transform function application we need access to the next continuation and pass it to the transformed function \icode{_f1}. We obtain the next continuation with \icode{getk "_nxt"}. The variable \icode{_nxt} is set to the continuation of a block when entering that block. The old 'next' continuation is saved and restored when exiting the block. In this case the continuation is \icode{_b0}, which just returns the value given to it. We can see the resemblance with continuation functions and blocks. This is not incidental: blocks will be compiled into continuation functions. So why do we not just use continuation functions? Because we do not have access to continuations yet. We are still operating on \icode{Lam}, without the help of a continuation monad. After we have transformed into a command tree we will be able to access the continuation of a command.
 
 \begin{lstlisting}[language=Python]
 block _b0
@@ -179,214 +226,50 @@ return _b0
 \end{lstlisting}
 
 \subsection{\label{subsection:semtosyn}Tree Compilation}
-The \icode{Tree} that is output by \icode{lam2tree} contains commands that represent effects. We will need to handle these commands before we can closure convert. By handling these syntactic representation of effects we give meaning to them.
-
-\subsubsection{\label{subsection:hblock}Handling Block}
-We begin by handling the three \icode{Block} commands with \icode{hBlock}, we will actually look at \icode{hBlock'}. The relation between the two is \icode{hBlock = hBlock' []}. \icode{hBlock} is simply a \icode{hBlock'} instantiated with an empty list. This way of abstracting over the extra argument that is used for an effect is used in the other tree compilation steps as well.
-
-The type of \icode{hBlock'} shows which commands are involved in the transformation. The \icode{Block} command is removed and is transformed into a combination of \icode{Fun} and \icode{Base} commands.
-
-The first argument \icode{hBlock'} is a list of continuations. The \icode{SETK} and \icode{GETK} commands update the and fetch a named continuation. In our case there is only a continuation named \icode{"_nxt"}. The \icode{BLOCK} command tells us to first handle the continuation \icode{k} and wrap it in a continuationo function. We set the name continuation \icode{"_nxt"} to the name of the continuation function and handle the body of the block with the updated continuation list. Finally, the result of the continuation function is applied to the result of the body of the block. Other commands and \icode{Leaf}s are handled uniformly.
+The \icode{Tree} that is output by \icode{lam2tree} contains commands that represent effects. We will need to handle these commands and instantiate name binding commands with generated variables before we can closure convert. By handling the syntactic representation of effects we give meaning to them. The transformation is called \icode{lam2tree} and is performed using monad \icode{M}. The monad \icode{M} provides a number that is used as a postfix for generating fresh variable names and an environment that associates \icode{String}s with \icode{Val}s.
 
 \begin{lstlisting}[language=Haskell]
-hBlock' :: ( Fresh :<: cmd
-           , Fun   :<: cmd
-           , Base  :<: cmd ) =>
-           [(String, Val)] ->
-           Tree (Block :+: cmd) Val ->
-           Tree cmd Val
-hBlock' nv (BLOCK b k) = do
-  VAR r <- fresh "r"
-  VAR x <- fresh "x"
-  fun r [x] (hBlock' nv (k (VAR x)))
-  v <- hBlock' (("_nxt",LABEL r):nv) b
-  app (LABEL r) [v]
-hBlock' nv (GETK x k) | Just v <- lookup x nv = hBlock' nv (k v)
-hBlock' nv (SETK x v k) = hBlock' ((x,v):nv) (k (INT 0))
-hBlock' nv (Leaf v) = Leaf v
-hBlock' nv (Node (R cmd) ks k) =
-  Node cmd
-    (fmap (\ k -> hBlock' nv k) ks)
-    (fmap (\ k x -> hBlock' nv (k x)) k)
+type M = StateT Int (Reader [(String,Val)])
 \end{lstlisting}
-
-After \icode{hBlock} our example no longer contains blocks. They have been replaced by continuation functions. In our example this means that block \icode{_b0} has been replaced by function \icode{_r0}. Our program now almost looks like the program in the original version of LamToWat. After the next step it will be the same up to renaming of variables.
-
-\begin{lstlisting}[language=Python]
-_r0 = fresh r
-_x1 = fresh x
-def _r0(_x1):
-  return _x1
-_f2 = fresh f
-_k3 = fresh k
-def _f2(x,_k3):
-  _x4 = fresh x
-  _x5 = x + 1
-  _k3(_x5)
-_f2(41,_r0)
-\end{lstlisting}
-
-\subsubsection{\label{subsection:hfresh}Handling Fresh}
-In order to handle fresh variable generation we exploit the structure of the command tree. Every time we encounter a node that does not contain a \icode{Fresh} command, we add a number to the list \icode{s} that represents the location of a command in the tree. The subcontinuations are indicated with indices starting from 1 and the join-point is given the index 0. When we encounter a \icode{Fresh} command in the tree we use this location list in combination with index \icode{i} in order to generate a unique variable name. When a \icode{Fresh} command is deeply nested in a tree the location list can get quite long and thus the variable name too. We could mitigate this by hashing the location list to obtain a shorter variable name.
 
 \begin{lstlisting}[language=Haskell]
-hFresh' :: Int -> [Int] -> Tree (Fresh :+: cmd) Val -> Tree cmd Val
-hFresh' i s (FRESH x k) =
-  hFresh' (i+1) s (k (VAR ("_" ++ x ++ show i ++ concatMap (('_':) . show) s)))
-hFresh' i s (Leaf v) = Leaf v
-hFresh' i s (Node (R cmd) ks k) = do
-  Node cmd
-    (zipWith (\ k j -> hFresh' i (s ++ [j]) k) ks [1..]) -- hack?
-    (fmap (\ k x -> hFresh' i (s ++ [0])  (k x)) k)
 \end{lstlisting}
 
-Our example now looks like this. We see that variable names are longer and no more \icode{fresh} commands are present. The program is the same as the program of the original version after closure conversion. We had to handle the extra \icode{Block} effect that was used to describe control flow and the \icode{Fresh} effect that was previously represented by a monad transformer.
+The compilation of the \icode{Fresh} command seems trivial, because we use the helper function \icode{fresh}. This helper function should not be confused by the sugared version of the \icode{Fresh} command. This function updates the state integer of \icode{M} and returns a fresh variable (in this case a string).
 
-\begin{lstlisting}[language=Python]
-def _r0(_x1):
-  return _x1
-def _f2_0(x,_k3_0):
-  _x4_0_1 = x + 1
-  _k3_0(_x4_0_1)
-_f2_0(41,_r0)
-\end{lstlisting}
+The compilation of \icode{Add} shows the instantiation of variables in the metalanguage with variables in the syntactic command trees. We generate a fresh variable \icode{x}, pass it to the continuation and compile the continuation, and finally plug the result into the syntactic command tree.
+
+The \icode{Setk} and \icode{Getk} commands update and fetch named continuations. In our case there is only a continuation that is named \icode{_nxt}. The \icode{Block} command tells us to compile the continuation \icode{k} by passing it \icode{VAR x} and wrap it in a continuation function with name \icode{r} and argument {x}. We set the continuation \icode{_nxt} to the function label \icode{LABEL r}. We extend the body of the block with a final application of the continuation function \icode{r} to the result \icode{v} and compile with the updated continuation list. Finally, we create the continuation function and give it the compiled body \icode{b'} as continuation.
 
 \subsection{\label{subsection:closconvert2}Closure Conversion}
 Now that we have eliminated our effectful commands we can closure convert our tree. We will follow the same approach as in the previous version: collect names of expression and use these to construct records. We will make the assumption that the only place where expressions are named (and thus our environment is extended) is in the join-point of a node and in functions. We do not hoist our function definitions to the top level immediately. We need an extra function for this. Separating these two transformations also gives as a chance to better describe the type of the command tree before and after.
 
-Using monadic helper functions we can make this transformation somewhat easier to read. We do still use helper functions \icode{_nv} and \icode{_p} to name the new closure variables and function pointers. We see that the transformation only really effects \icode{FUN} and \icode{APP} nodes. The type of \icode{hClosure'} shows that we transform \icode{Fun} and \icode{Base} commands by adding a \icode{Record} command to our command tree.
+Using monadic helper functions we can make this transformation somewhat easier to read. We see that the transformation only really effects \icode{Fix} and \icode{App} nodes. The type of \icode{hClos'} shows that we transform \icode{Fix} and \icode{Base} commands by adding a \icode{Record} command to our command tree. In the organization of our compiler we see the function \icode{hClos} used instead of \icode{hClos'}. \icode{hClos} is simply \icode{hClos'} instantiated with an empty list, e.g., \icode{hClos = hClos' []}.
 
 \begin{lstlisting}[language=Haskell]
-hClosure' :: ( Fun  :<: cmd
-             , Base :<: cmd ) =>
-             [String] ->
-             Tree cmd Val ->
-             Tree (Record :+: cmd) Val
-hClosure' nv (FUN f as b k) = do
-  fun f (_nv:as)
-    (do select 1 (VAR _nv) _nv
-        zipWithM_ (\ i x ->
-                     if x `elem` as
-                     then return (VAR x)
-                     else select i (VAR _nv) x) [0..] nv
-        hClosure' (nv ++ as) b)
-  hClosure' nv (k (LABEL f))
-hClosure' nv (APP v vs) = do
-  record (map VAR nv) _nv
-  vs' <- mapM (\ v -> case v of
-                   LABEL f -> record [v,VAR _nv] (_p f)
-                   _       -> return v) vs
-  case v of
-    VAR f -> do
-      fp <- select 0 v (_p f)
-      app fp (v:vs')
-    LABEL f -> do
-      fc <- record [v,VAR _nv] (_p f)
-      app v (fc:vs')
-hClosure' nv (Leaf v) = Leaf v
-hClosure' nv (Node cmd ks k) =
-  Node (R cmd)
-    (fmap (\ k -> hClosure' nv k) ks)
-    (fmap (\ k v -> hClosure' (nv ++ case v of VAR x -> [x]; _ -> []) (k v)) k)
 \end{lstlisting}
 
 We see how our nested example \icode{(\ x y -> x + y) 13 29} looks after closure conversion. Functions have an extra \icode{_nv} argument. Bodies of functions are prefixed with opening the closure and postfixed with creating closures before calling another function. In the previous version of LamToWat we did not get to see this rendering of our example, because it was hoisted immediately.
 
 \begin{lstlisting}[language=Python]
-def _r0(_nv,_x1):
-  _nv = _nv[1]
-  return _x1
-def _r2_0(_nv,_x3_0):
-  _nv = _nv[1]
-  _nv = [_x3_0]
-  __r0 = [_r0,_nv]
-  __x3_0 = _x3_0[0]
-  __x3_0(_x3_0,23,__r0)
-def _f4_0_0(_nv,x,_k5_0_0):
-  _nv = _nv[1]
-  def _f6_0_0_1(_nv,y,_k7_0_0_1):
-    _nv = _nv[1]
-    x = _nv[0]
-    _k5_0_0 = _nv[1]
-    _x8_0_0_1_1 = x + y
-    _nv = [x,_k5_0_0,y,_k7_0_0_1,_x8_0_0_1_1]
-    __k7_0_0_1 = _k7_0_0_1[0]
-    __k7_0_0_1(_k7_0_0_1,_x8_0_0_1_1)
-  _nv = [x,_k5_0_0]
-  __f6_0_0_1 = [_f6_0_0_1,_nv]
-  __k5_0_0 = _k5_0_0[0]
-  __k5_0_0(_k5_0_0,__f6_0_0_1)
-_nv = []
-__r2_0 = [_r2_0,_nv]
-__f4_0_0 = [_f4_0_0,_nv]
-_f4_0_0(__f4_0_0,19,__r2_0)
 \end{lstlisting}
 
-Before we hoist our function definitions to the top level we can transform our \icode{Record} commands into \icode{Malloc} commands. Here we see that we can fix our shortcoming of repeated constructors quite easily with command trees. We can focus on a particular command and translate it into its lower-level counterpart. In this case only \icode{RECORD} as truly translated as \icode{SELECT} and \icode{LOAD} have a one-to-one mapping.
+Before we hoist our function definitions to the top level we can transform our \icode{Record} commands into \icode{Malloc} commands. Here we see that we can fix our shortcoming of repeated constructors quite easily with command trees. We can focus on a particular command and translate it into its lower-level counterpart. In this case only \icode{Record} as truly translated as \icode{Select} and \icode{Load} have a one-to-one mapping.
 
 \begin{lstlisting}[language=Haskell]
-hRecord :: Tree (Record :+: cmd) Val -> Tree (Malloc :+: cmd) Val
-hRecord (RECORD vs x k) = do
-  malloc (length vs) x
-  zipWithM_ (\ i v -> store i (VAR x) v) [0..] vs
-  hRecord (k (VAR x))
-hRecord (SELECT i v x k) = do
-  load i v x
-  hRecord (k (VAR x))
-hRecord (Leaf v) = Leaf v
-hRecord (Node (R cmd) ks k) =
-  Node (R cmd)
-    (fmap (\ k -> hRecord k) ks)
-    (fmap (\ k x -> hRecord (k x)) k)
 \end{lstlisting}
 
-Hoisting is done with the \icode{hFun} function. We will need to be able to open the join-point of a \icode{Node} of our command tree in order to be able to hoist, because it is a non-local transformation. A non-local transformation affects the entire tree. In the case of hoisting we are chopping up the tree into individual commands, separating the \icode{FUN} commands and putting them into a list, and glueing the other commands back together to form a new tree.
+Hoisting is done with the \icode{hFix} function. We will need to be able to open the join-point of a \icode{Node} of our command tree in order to be able to hoist, because it is a non-local transformation. A non-local transformation affects the entire tree. In the case of hoisting we are chopping up the tree into individual commands, separating the \icode{Fix} commands and putting them into a list, and glueing the other commands back together to form a new tree.
 
-We have to restrict the type of our command tree to commands that allow the opening of their join-point to be able to hoist. Opening a join-point is done by passing it a \icode{Val}. In our case it does not pose a problem, because we are left with exactly these type of commands after the previous compilation step. \icode{ADD}, \icode{MALLOC}, and \icode{LOAD} carry their name with them in the variable \icode{x}. \icode{STORE} is not bound to anything and thus passes the dummy value \icode{INT 0} to open its join-point.
-
-The resulting type is a tuple of a command tree function list and a command tree representing something like the actual program. The type clearly indicates that functions no longer contain other functions. We only have trees with \icode{Malloc} and \icode{Base} commands in combination with a function name (\icode{String}) and function arguments (\icode{[String]}) to represent a function.
+The resulting type is a tuple of a command tree function list and a command tree representing something like the actual program. The type clearly indicates that functions no longer contain other functions. We only have \icode{Tps} without \icode{Fix} commands in combination with a function name (\icode{String}) and function arguments (\icode{[String]}) to represent a function.
 
 \begin{lstlisting}[language=Haskell]
-type Tree' = Tree (Malloc :+: Base) Val
-
-hFun :: Tree (Malloc :+: Fun :+: Base) Val -> ([(String,[String],Tree')], Tree')
-hFun (Leaf v) = ([],Leaf v)
-hFun (APP v vs) = ([],app v vs)
-hFun (ADD v1 v2 x k) = case hFun (k (VAR x)) of (fs,k') -> (fs, add v1 v2 x >> k')
-hFun (MALLOC i x k)  = case hFun (k (VAR x)) of (fs,k') -> (fs, malloc i x >> k')
-hFun (LOAD i v x k)  = case hFun (k (VAR x)) of (fs,k') -> (fs, load i v x >> k')
-hFun (STORE i s t k) = case hFun (k (INT 0)) of (fs,k') -> (fs, store i s t >> k')
-hFun (FUN f as b k)  =
-  case hFun b of (fs,b') -> case hFun (k (LABEL f)) of (fs',k') -> ((f,as,b'):fs'++fs,k')
 \end{lstlisting}
 
 \subsection{\label{subsection:emit2}Emitting}
-The emit step now becomes even more trivial, as we have also eliminated records from our command tree and replaced them with malloc commands. We include this step for completeness and testing purposes. We could use the command tree output by \icode{hFun} to generate WebAssembly code. The mapping is one-to-one for expressions: every remaining tree command has a \icode{Wat} counterpart. However, the transformation of \icode{Tree.Val} to \icode{Wat.Val} does need to change labels into integers.
+The emit step now becomes even more trivial, as we have also eliminated records from our command tree and replaced them with malloc commands. We include this step for completeness and testing purposes. We could use the command tree output by \icode{hFix} to generate WebAssembly code. The mapping is one-to-one for expressions: every remaining tree command has a \icode{Wat} counterpart. However, the transformation of \icode{Val}s does need to change labels into integers.
 
 \begin{lstlisting}[language=Haskell]
-type Tree' = Tree (Malloc :+: Base) Tree.Val
-
-tree2wat :: ([(String, [String], Tree')], Tree') -> Wat
-tree2wat (fs,e) = Module fs' (go e)
-  where ns :: [String]
-        ns = map (\ (f,as,b) -> f) fs
-
-        fs' :: [(String,[String],Exp)]
-        fs' = map (\ (f,as,b) -> (f,as,go b)) fs
-
-        go :: Tree (Malloc :+: Base) Tree.Val -> Exp
-        go (Leaf v) = Done (vo v)
-        go (APP v vs) = App (vo v) (map vo vs)
-        go (ADD v1 v2 x k) = Add (vo v1) (vo v2) x (go (k (Tree.VAR x)))
-        
-        go (MALLOC i x k) = Malloc i x (go (k (Tree.VAR x)))
-        go (LOAD i v x k) = Load i (vo v) x (go (k (Tree.VAR x)))
-        go (STORE i s t k) = Store i (vo s) (vo t) (go (k (Tree.INT 0)))
-        
-        vo :: Tree.Val -> Wat.Val
-        vo (Tree.INT i) = Wat.INT i
-        vo (Tree.VAR x) = Wat.VAR x
-        vo (Tree.LABEL x) = Wat.INT (fromJust (x `elemIndex` ns))
 \end{lstlisting}
 
 \section{\label{section:summarytree}Chapter Summary}
@@ -396,7 +279,7 @@ More transformations are performed on the command tree then on \icode{Cps}, beca
 
 \begin{itemize}
 \item CPS conversion becomes easier to specify by using blocks in \icode{lam2tree}.
-\item The type of the output of \icode{hFun} indicates that functions are no longer nested.
+\item The type of the output of \icode{hFix} indicates that functions are no longer nested.
 \item \icode{hRecord} only transforms records and thus removes duplicate constructors.
 \end{itemize}
 
