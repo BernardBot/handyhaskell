@@ -257,8 +257,7 @@ When we transform function application we need access to the next continuation a
       (Fix ("_f1",["x","_k2"]) : Nil) [(Add x 1) (λ _x3 → (App _k2 [_x3])); ] 
         (GetK _nxt) (λ _x4 → 
           (App _f1 [41,_x4]))))
-] 
-(λ _x0 → _x0)
+] (λ _x0 → _x0)
 \end{lstlisting}
 
 \subsection{\label{subsection:semtosyn}Tree Compilation}
@@ -307,7 +306,7 @@ The \icode{Setk} and \icode{Getk} commands update and fetch named continuations.
 
 After tree compilation we obtain a \icode{Tps} with the commands \icode{Fix} and \icode{Base}. Our example \icode{(\ x -> x + 1) 41} now looks the same as \icode{Cps} after CPS conversion. We have done two tranformations to obtain the same result. However, these transformations are significantly easier to write and the conversion from \icode{Tree} to \icode{Tps} only has to be written once if we keep the command set that \icode{Tree} has now. We show the printed version of \icode{Tps} (and \icode{Cps}) for reference here.
 
-\begin{lstlisting}[language=Haskell
+\begin{lstlisting}[language=Haskell]
 def _r0(_x1):
   return _x1
 def _f2(x,_k3):
@@ -322,7 +321,8 @@ Now that we have eliminated our effectful commands we can closure convert our tr
 Using monadic helper functions we can make this transformation somewhat easier to read. We see that the transformation only really effects \icode{Fix} and \icode{App} nodes. The type of \icode{hClos'} shows that we transform \icode{Fix} and \icode{Base} commands by adding a \icode{Record} command to our command tree. In the organization of our compiler we see the function \icode{hClos} used instead of \icode{hClos'}. \icode{hClos} is simply \icode{hClos'} instantiated with an empty list, e.g., \icode{hClos = hClos' []}.
 
 \begin{lstlisting}[language=Haskell]
-hClos' :: [String] -> Tps (Fix :+: Base :+: cmd) Val -> Tps (Record :+: Fix :+: Base :+: cmd) Val
+hClos' :: [String] -> Tps            (Fix :+: Base :+: cmd) Val -> 
+                      Tps (Record :+: Fix :+: Base :+: cmd) Val
 hClos' nv (Node (L (Fix fxs)) bs (Some (_,k))) = do
   let fxs' = mapV (\ (f,as) -> (f,"_nv":as)) fxs
       bs' = zipWithV (\ (f,as) b -> do
@@ -416,7 +416,9 @@ hFix (Node (R cmd) ks k) = case fmap (fmap hFix) k of
   where ks' = fmap (snd . hFix) ks
         fs' = concat (toList (fmap (fst . hFix) ks))
 hFix (Node (L (Fix fxs)) bs (Some ("", k))) = let (fs,k') = hFix k in (fs'++fs,k')
-  where fs' = concatMap (\ ((f,as),b) -> let (fs,b') = hFix b in (f,as,b') : fs) (zip (toList fxs) (toList bs))
+  where fs' = concatMap 
+               (\ ((f,as),b) -> let (fs,b') = hFix b in (f,as,b') : fs) 
+                (zip (toList fxs) (toList bs))
 \end{lstlisting}
 
 The result of \icode{hFix} of the example \icode{(\ x -> x + 1) 41} looks as follows. It is the same as \icode{Cps} after the closure conversion step except for the replacement of records and selects with mallocs, loads, and store.
@@ -481,7 +483,7 @@ Although command trees provide a useful abstraction for language implementers, i
 In order to check intermediate results of the compiler we would like to have an interpreter for \icode{Tree} and \icode{Tps}. We now only have a pretty printer for both data types, but we want to be able to map \icode{Tree} and \icode{Tps} to a certain domain. The modular nature of \icode{Tps} requires some attention to make the interpreter modular as well. We would also like a function that transforms \icode{Tps} back into \icode{Tree} for the right set of commands. This would show the morphism between the two and give another check of the compilation process.
 
 % type constraints
-Our command trees have some types, but we would like our types to do even more. For example we want a type to indicate that an expression is closed after closure conversion, i.e., it does not have any free variables. Transforming syntactic command trees into semantic ones would then be a sort of type checking function. Typing closure conversion has been studied in Haskell and other languages \autocite{DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07, DBLP:conf/popl/MorrisettWCG98}.
+Our command trees have some types, but we would like our types to do even more. For example we want a type to indicate that an expression is closed after closure conversion, i.e., it does not have any free variables. Transforming syntactic command trees into semantic ones would function as a sort of type checking function. Typing closure conversion has been studied in Haskell and other languages \autocite{DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07, DBLP:conf/popl/MorrisettWCG98}. We tried to implement something similar in LamToWat but found Haskell's type system uncooperative.
 
 % better open unions
 The implementation of open unions we have used for making \icode{Tps} modular can be improved. There is still some extra work required of the programmer, e.g., using the function \icode{swap} before being able to apply \icode{hFix}. Open unions should behave like real sets and not suffer from their implementation as lists. There are some other implementations of open unions in the Haskell language which may provide the functionality we require \autocite{extensible-effects, open-union}.

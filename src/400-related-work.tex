@@ -215,7 +215,7 @@ data Cps a
   | BLOCK (Cps Val) (Val -> Cps a)
 \end{lstlisting}
 
-Our original constructors are here combined with embedded effects. These effects were represented by monad transformers in the first version in the compiler and with the two command \icode{Fresh} and \icode{Block} in the second version. Embedding them inside gives us all the features of a command tree without overhead of projecting and injecting commmands. The continuations of \icode{ADD,RECORD,SELECT} have been changed to be semantic and have type \icode{Val -> Cps a} instead of being syntactic and binding their names directly. We (monadic) bind expressions together by entering their continuation. For example the monadic bind of \icode{ADD} is defined as \icode{ADD v1 v2 k >>= f = ADD v1 v2 (\ x -> k x >>= f)}. We can define the same smart constructors as for the command tree. This time, however, they are simply constructors and not very smart. If we take \icode{ADD} as example again we get the constructor by combining it with \icode{DONE}: \icode{add v1 v2 = ADD v1 v2 DONE}.
+Our original constructors are here combined with embedded effects. These effects were represented by monad transformers in the first version in the compiler and with the two command \icode{Fresh} and \icode{Block} in the second version. Embedding them inside gives us all the features of a command tree without overhead of projecting and injecting commmands. The continuations of \icode{ADD,RECORD,SELECT} have been changed to be semantic and have type \icode{Val -> Cps a} instead of being syntactic and binding their names directly. We (monadic) bind expressions together by entering their continuation. For example the monadic bind of \icode{ADD} is defined as \icode{ADD v1 v2 k >>= f = ADD v1 v2 (\ x -> k x >>= f)}. We can define the same smart constructors as for the command tree. If we take \icode{ADD} as example again we get the constructor by combining it with \icode{DONE}: \icode{add v1 v2 = ADD v1 v2 DONE}.
 
 \begin{lstlisting}[language=Haskell]
 data Base a
@@ -248,11 +248,15 @@ To automate the testing process we use Cabal \autocite{haskellcabal}, which allo
 \subsection{Performance}
 How do command trees perform in comparison with monad transformers? The paper \citetitle{DBLP:conf/haskell/KiselyovI15} \autocite{DBLP:conf/haskell/KiselyovI15} compares the \icode{mtl} library with their own extensible effects library based on the freer monad. Their results show that algebraic effects outperform monad transformers when we nest multiple effects. Since the Haskell compiler GHC has specific optimizations for the \icode{mtl} library and especially the \icode{State} monad, monad transformers are sometimes faster for single effects.
 
+While testing both versions of LamToWat no noticeable difference was observed for both compile and execution time of the generated programs. Since programs were comparatively small, this does not give a good indication of how command trees would perform on larger bodies of code.
+
 \subsection{Other Transformations}
 Our compiler is a very simplified version of the compiler described in \citetitle{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396}. \citeauthor{DBLP:books/daglib/0022396} discusses a number of other transformations that improve the performance of the generated code and compile other language features.
 
+% TODO
 \begin{itemize}
-\item TODO
+\item Compilation of pattern matching
+\item
 \end{itemize}
 % discuss greenbook
 % free variable analysis for lambda calculus
