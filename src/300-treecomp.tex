@@ -8,7 +8,7 @@ In this chapter we propose command trees as an improvement upon the \icode{Cps} 
 \begin{gather*}
   String \xto{str2lam}\\
   Lam \xto{lam2tree}\\
-  Tree \em Cmd \em Val \xto{tree2tps}\\
+  Tree \quad Cmd \quad Val \xto{tree2tps}\\
   T (Fix + Base) \xto{hClosure}\\
   T (Record + Fix + Base) \xto{hRecord}\\
   T (Malloc + Fix + Base) \xto{swap}\\
@@ -104,13 +104,10 @@ Node (Fix (("f", ["x"]) ::: Nil)) ((\ () ->
 Node (App (VAR "f") [INT 41]) Nil None))
 \end{lstlisting}
 
-Just like with \icode{Cps} we have a printed version of semantic command trees. The printed version is exactly the same for our simple example. However, semantic command trees have extra compilation commands: \icode{GetK}, \icode{SetK}, \icode{Block}, and \icode{Fresh}. These are represented with the following notation.
+Just like with \icode{Cps} we have a printed version of semantic command trees. The printed version looks like the written version we just examined.
 
 \begin{lstlisting}[language=Haskell]
-x = getk y
-setk x y
-block x {}
-x = fresh "x"
+(Fix ("f",["x"]) : Nil) [(Add x 1) (λ _x0 → _x0); ] (App f [41])
 \end{lstlisting}
 
 \subsection{\label{subsection:syntree}Syntactic CPS Command Tree}
@@ -161,12 +158,21 @@ data Malloc :: Sig where
 data VoidCmd :: Sig where
 \end{lstlisting}
 
-If we look at the example \icode{(\ x -> x + 1) 41}, we will see that it is very similar to the semantic counterpart. The main difference is that semantic variables have been replaced with strings. The printed version of syntactic command trees is exactly the same as that for \icode{Cps}, because the compilation commands have been dropped.
+If we look at the example \icode{(\ x -> x + 1) 41}, we will see that it is very similar to the semantic counterpart. The main difference is that semantic variables have been replaced with strings.
 
 \begin{lstlisting}[language=Haskell]
 Node (L (Fix (("f", ["x"]) ::: Nil)))
 ((Node (R (Add (VAR "x") (INT 1))) Nil (Some ("n", Leaf (VAR "n")))) ::: Nil) (Some ("",
 Node (R (App (VAR "f") [INT 41])) Nil None))
+\end{lstlisting}
+
+The printed version of syntactic command trees is exactly the same as that for \icode{Cps}, because the compilation commands have been dropped.
+
+\begin{lstlisting}[language=Haskell]
+def f(x):
+  n = x + 1
+  return n
+f(41)
 \end{lstlisting}
 
 \subsubsection{\label{subsection:openunion}Open Unions or Extensible Sums}
@@ -239,23 +245,20 @@ lam2tree (Add e1 e2) = do
 
 We take a look at the conversion of \icode{Lam}. We generate a fresh function variable \icode{f} and continuation variable \icode{k}. We use these variables to create a function with name \icode{f} that has as argument the original variable and a continuation named \icode{k}. The body of the function will be the converted original body and a final statement that applies the continuation to the resulting variable. Finally, we return a \icode{LABEL} with the function name.
 
-We convert our example lambda expression \icode{(\ x -> x + 1) 41} to obtain the following result. The most notable novelty is the use of a \icode{block}. Blocks are used to bind parts of code together and replace the metacontinuation of the original version. If we take the code outside the block it would end with an application of \icode{_f1}. Since applications do not have a continuation, any code after it would be discarded. In our case the application is the last thing that happens, so it does not really matter, but when we nest more than one application in our expression it becomes a problem. Continuations will be dropped. This is not the behavior we want, so we use \icode{block}s instead. We also see that there are still \icode{fresh} commands in the tree. These will be handled when transforming to \icode{Tps} in the next transformation.
+We convert our example lambda expression \icode{(\ x -> x + 1) 41} to obtain the following result. The most notable novelty is the use of a \icode{Block}. Blocks are used to bind parts of code together and replace the metacontinuation of the original version. If we take the code outside the block it would end with an application of \icode{_f1}. Since applications do not have a continuation, any code after it would be discarded. In our case the application is the last thing that happens, so it does not really matter, but when we nest more than one application in our expression it becomes a problem. Continuations will be dropped. This is not the behavior we want, so we use \icode{block}s instead. We also see that there are still \icode{fresh} commands in the tree. These will be handled when transforming to \icode{Tps} in the next transformation.
 
-When we transform function application we need access to the next continuation and pass it to the transformed function \icode{_f1}. We obtain the next continuation with \icode{getk "_nxt"}. The variable \icode{_nxt} is set to the continuation of a block when entering that block. The old 'next' continuation is saved and restored when exiting the block. In this case the continuation is \icode{_b0}, which just returns the value given to it. We can see the resemblance with continuation functions and blocks. This is not incidental: blocks will be compiled into continuation functions. So why do we not just use continuation functions? Because we do not have access to continuations yet. We are still operating on \icode{Lam}, without the help of a continuation monad. After we have transformed into a command tree we will be able to access the continuation of a command.
+When we transform function application we need access to the next continuation and pass it to the transformed function \icode{_f1}. We obtain the next continuation with \icode{GetK _nxt}. The variable \icode{_nxt} is set to the continuation of a block when entering that block. The old 'next' continuation is saved and restored when exiting the block. In this case the continuation is \icode{_x0}, which just returns the value given to it. We can see the resemblance with continuation functions and blocks. This is not incidental: blocks will be compiled into continuation functions. So why do we not just use continuation functions? Because we do not have access to continuations yet. We are still operating on \icode{Lam}, without the help of a continuation monad. After we have transformed into a command tree we will be able to access the continuation of a command.
 
 \begin{lstlisting}[language=Python]
-block _b0
-{
-  _f1 = fresh f
-  _k2 = fresh k
-  def _f1(x,_k2):
-    _x3 = fresh x
-    _x4 = x + 1
-    _k2(_x4)
-  _g5 = getk _nxt
-  _f1(41,_g5)
-}
-return _b0
+(Block) 
+[
+  (Fresh f) (λ _f1 →
+    (Fresh k) (λ _k2 →
+      (Fix ("_f1",["x","_k2"]) : Nil) [(Add x 1) (λ _x3 → (App _k2 [_x3])); ] 
+        (GetK _nxt) (λ _x4 → 
+          (App _f1 [41,_x4]))))
+] 
+(λ _x0 → _x0)
 \end{lstlisting}
 
 \subsection{\label{subsection:semtosyn}Tree Compilation}
@@ -302,6 +305,17 @@ The compilation of \icode{Add} shows the instantiation of variables in the metal
 
 The \icode{Setk} and \icode{Getk} commands update and fetch named continuations. In our case there is only a continuation that is named \icode{_nxt}. The \icode{Block} command tells us to compile the continuation \icode{k} by passing it \icode{VAR x} and wrap it in a continuation function with name \icode{r} and argument {x}. We set the continuation \icode{_nxt} to the function label \icode{LABEL r}. We extend the body of the block with a final application of the continuation function \icode{r} to the result \icode{v} and compile with the updated continuation list. Finally, we create the continuation function and give it the compiled body \icode{b'} as continuation.
 
+After tree compilation we obtain a \icode{Tps} with the commands \icode{Fix} and \icode{Base}. Our example \icode{(\ x -> x + 1) 41} now looks the same as \icode{Cps} after CPS conversion. We have done two tranformations to obtain the same result. However, these transformations are significantly easier to write and the conversion from \icode{Tree} to \icode{Tps} only has to be written once if we keep the command set that \icode{Tree} has now. We show the printed version of \icode{Tps} (and \icode{Cps}) for reference here.
+
+\begin{lstlisting}[language=Haskell
+def _r0(_x1):
+  return _x1
+def _f2(x,_k3):
+  _x4 = x + 1
+  _k3(_x4)
+_f2(41,_r0)
+\end{lstlisting}
+
 \subsection{\label{subsection:closconvert2}Closure Conversion}
 Now that we have eliminated our effectful commands we can closure convert our tree. We will follow the same approach as in the previous version: collect names of expression and use these to construct records. We will make the assumption that the only place where expressions are named (and thus our environment is extended) is in the join-point of a node and in functions. We do not hoist our function definitions to the top level immediately. We need an extra function for this. Separating these two transformations also gives as a chance to better describe the type of the command tree before and after.
 
@@ -346,6 +360,33 @@ hClos' nv (Node cmd ks k) =
 We see how our nested example \icode{(\ x y -> x + y) 13 29} looks after closure conversion. Functions have an extra \icode{_nv} argument. Bodies of functions are prefixed with opening the closure and postfixed with creating closures before calling another function. In the previous version of LamToWat we did not get to see this rendering of our example, because it was hoisted immediately.
 
 \begin{lstlisting}[language=Python]
+def _r0(_nv,_x1):
+  _nv = _nv[1]
+  return _x1
+def _r2(_nv,_x3):
+  _nv = _nv[1]
+  _nv = [_x3]
+  __r0 = [_r0,_nv]
+  __x3 = _x3[0]
+  __x3(_x3,29,__r0)
+def _f4(_nv,x,_k5):
+  _nv = _nv[1]
+  def _f6(_nv,y,_k7):
+    _nv = _nv[1]
+    x = _nv[0]
+    _k5 = _nv[1]
+    _x8 = x + y
+    _nv = [x,_k5,y,_k7,_x8]
+    __k7 = _k7[0]
+    __k7(_k7,_x8)
+  _nv = [x,_k5]
+  __f6 = [_f6,_nv]
+  __k5 = _k5[0]
+  __k5(_k5,__f6)
+_nv = []
+__r2 = [_r2,_nv]
+__f4 = [_f4,_nv]
+_f4(__f4,13,__r2)
 \end{lstlisting}
 
 Before we hoist our function definitions to the top level we can transform our \icode{Record} commands into \icode{Malloc} commands. Here we see that we can fix our shortcoming of repeated constructors quite easily with command trees. We can focus on a particular command and translate it into its lower-level counterpart. In this case only \icode{Record} as truly translated as \icode{Select} and \icode{Load} have a one-to-one mapping.
@@ -376,6 +417,31 @@ hFix (Node (R cmd) ks k) = case fmap (fmap hFix) k of
         fs' = concat (toList (fmap (fst . hFix) ks))
 hFix (Node (L (Fix fxs)) bs (Some ("", k))) = let (fs,k') = hFix k in (fs'++fs,k')
   where fs' = concatMap (\ ((f,as),b) -> let (fs,b') = hFix b in (f,as,b') : fs) (zip (toList fxs) (toList bs))
+\end{lstlisting}
+
+The result of \icode{hFix} of the example \icode{(\ x -> x + 1) 41} looks as follows. It is the same as \icode{Cps} after the closure conversion step except for the replacement of records and selects with mallocs, loads, and store.
+
+\begin{lstlisting}[language=Haskell]
+def _r0(_nv,_x1):
+  _nv = load 1 _nv
+  return _x1
+def _f2(_nv,x,_k3):
+  _nv = load 1 _nv
+  _x4 = x + 1
+  _nv = malloc 3
+  store 0 _nv x
+  store 1 _nv _k3
+  store 2 _nv _x4
+  __k3 = load 0 _k3
+  __k3(_k3,_x4)
+_nv = malloc 0
+__r0 = malloc 2
+store 0 __r0 _r0
+store 1 __r0 _nv
+__f2 = malloc 2
+store 0 __f2 _f2
+store 1 __f2 _nv
+_f2(__f2,41,__r0)
 \end{lstlisting}
 
 \subsection{\label{subsection:emit2}Emitting}
@@ -411,8 +477,14 @@ In this section we will explore the design space for command trees and discusss 
 % blocks
 Although command trees provide a useful abstraction for language implementers, it does require knowledge of the block model for control flow. In the original version of LamToWat CPS conversion is implemented using a metacontinuation. This metacontinuation indicates what a program does next. When we transform a application we have to construct a return point function and pass it as the last argument to the new application. These manipulations of control flow become even more non-trivial when implementing imperative language constructs such as \icode{while} and \icode{for}. Moreover, when we have to use multiple metacontinuations in case we want to throw exceptions or break from a \icode{while} loop, the bookkeeping of metacontinuations becomes cumbersome. Command trees help the programmer somewhat by having these metacontinuations live inside the tree. The language implementer will still need to wrap certain parts of code inside a block and fetch the right continuation at the right point. The real burden is now put on the compiler writer, who has to compile the semantic command tree to a syntactic one.
 
-% TODO: other improvements
-% TODO: Tps -> Tree?
+% interpreter + morphism
+In order to check intermediate results of the compiler we would like to have an interpreter for \icode{Tree} and \icode{Tps}. We now only have a pretty printer for both data types, but we want to be able to map \icode{Tree} and \icode{Tps} to a certain domain. The modular nature of \icode{Tps} requires some attention to make the interpreter modular as well. We would also like a function that transforms \icode{Tps} back into \icode{Tree} for the right set of commands. This would show the morphism between the two and give another check of the compilation process.
+
+% type constraints
+Our command trees have some types, but we would like our types to do even more. For example we want a type to indicate that an expression is closed after closure conversion, i.e., it does not have any free variables. Transforming syntactic command trees into semantic ones would then be a sort of type checking function. Typing closure conversion has been studied in Haskell and other languages \autocite{DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07, DBLP:conf/popl/MorrisettWCG98}.
+
+% better open unions
+The implementation of open unions we have used for making \icode{Tps} modular can be improved. There is still some extra work required of the programmer, e.g., using the function \icode{swap} before being able to apply \icode{hFix}. Open unions should behave like real sets and not suffer from their implementation as lists. There are some other implementations of open unions in the Haskell language which may provide the functionality we require \autocite{extensible-effects, open-union}.
 
 \section{\label{section:summarytree}Chapter Summary}
 In this chapter we have shown how the three shortcomings of our original compiler are eliminated by using command trees as IR. Each of the shortcomings addressed at the end of the previous chapter \ref{section:summarycps} is alleviated as follows. 

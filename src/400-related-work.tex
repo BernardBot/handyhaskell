@@ -239,17 +239,17 @@ The compiler steps will look like a combination of the first and second version 
 In this chapter we will discuss how tested that our compiler worked, the performance of the transformations and command trees, and some of the transformations we did not do because they were out of scope of this thesis.
 
 \subsection{Testing}
-In order to test if all transformations performed correctly we wrote interpreters for the \icode{Lam}, \icode{Cps}, and \icode{Wat} data types. This allowed us to test programs at different steps of the compilation process. We then compared the results of all interpreters and checked that they were the same. We did not write an interpreter for \icode{Tps}. We simply compared the interpreted result of the compiled \icode{Wat} with that of the other interpreters.
+In order to test if all transformations performed correctly we have writteen interpreters for the \icode{Lam}, \icode{Cps}, and \icode{Wat} languages/data types. This allowed us to test programs at different steps of the compilation process. We compare the results of all interpreters and check that they are the same. We did not write an interpreter for \icode{Tps}. We simply compared the interpreted result of the compiled \icode{Wat} generated from \icode{Tps} with that of the other interpreters.
 
-Because we had a parser for the lambda calculus we can write lambda source files and automatically read them. However, because the domain of the lambda calculus is functions and integers and that of WebAssembly and \icode{Wat} is only integers, we need to make sure that our lambda calculus programs have integer results. Otherwise our comparison will fail, which it should do in this case.
+Because we have a parser for the lambda calculus we can create lambda source files and automatically read them. However, because the domain of the lambda calculus is functions and integers and that of WebAssembly and \icode{Wat} is only integers, we need to make sure that our lambda calculus programs have integer results. Otherwise our comparison will fail, which it should do in this case.
 
-To automate the testing process we used Cabal \autocite{haskellcabal}, which allows the user to create a test suite. By simply executing the \icode{cabal test} command all automated tests are run. A folder of lambda calculus source files that are used for testsing is provided in the projects repository.
+To automate the testing process we use Cabal \autocite{haskellcabal}, which allows the user to create a test suite. By simply executing the \icode{cabal test} command we run all automated tests. A folder of lambda calculus source files that are used for testsing is provided in the projects repository.
 
 \subsection{Performance}
 How do command trees perform in comparison with monad transformers? The paper \citetitle{DBLP:conf/haskell/KiselyovI15} \autocite{DBLP:conf/haskell/KiselyovI15} compares the \icode{mtl} library with their own extensible effects library based on the freer monad. Their results show that algebraic effects outperform monad transformers when we nest multiple effects. Since the Haskell compiler GHC has specific optimizations for the \icode{mtl} library and especially the \icode{State} monad, monad transformers are sometimes faster for single effects.
 
 \subsection{Other Transformations}
-Our compiler is a very simplified version of the compiler described in \citetitle{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396}. \citeauthor{DBLP:books/daglib/0022396} discusses a number of other transformations that improve the performance of the generated code.
+Our compiler is a very simplified version of the compiler described in \citetitle{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396}. \citeauthor{DBLP:books/daglib/0022396} discusses a number of other transformations that improve the performance of the generated code and compile other language features.
 
 \begin{itemize}
 \item TODO
