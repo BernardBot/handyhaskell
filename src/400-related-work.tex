@@ -254,13 +254,16 @@ While testing both versions of LamToWat no noticeable difference was observed fo
 Our compiler is a very simplified version of the compiler described in \citetitle{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396}. \citeauthor{DBLP:books/daglib/0022396} discusses a number of other transformations that improve the performance of the generated code and compile other language features.
 
 \begin{itemize}
-\item Compilation of pattern matching
-\item CPS optimization
-\item Beta expansion
-\item Hoisting optimization
-\item Register spilling
+\item Compilation of pattern matching\\\\
+
+Pattern matching is a feature that benefits many functional languages. To compile pattern matching we can use \icode{switch} expressions. \icode{switch} expressions takes a value and a list of expressions. We would need to add a switch expression to \icode{Cps} in the first version LamToWat and a switch command to both \icode{Tree} and \icode{Tps}. Our source language would have \icode{case} statements. These would need to be compiled to \icode{switch} expressions. This translation can be optimized by way of a decision-tree algorithm.
+
+\item Beta expansion\\\\
+
+Beta expansion or the inlining of functions substitutes a function body for a function call. This increases performance of a program. Substitution of function bodies is dangerous if not performed correctly, because it may lead to large increase of the program size. To implement this feature in LamToWat we could create a new command that identifies function bodies as candidates for inline expansion. We would have one command for candidate functions and one for non-candidate functions. We may need an auxilary function to perform the candidate analysis.
+
+\item Closure Optimization\\\\
+
+Creating efficient closures is not trivial. LamToWat makes simple but inefficient closures. In order to create closures that are optimized for speed or memory usage we will need to perform variable analysis. We could create a command that is a special form of \icode{Fix} that carries this variable information with it. We can implement two transformations: one that does the analysis and one that creates the better closures. The syntactic nature of \icode{Tps} allows us to do this optimizationo.
+
 \end{itemize}
-% discuss greenbook
-% free variable analysis for lambda calculus
-% optimization of closures
-% dynamic memory allocation
