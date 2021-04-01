@@ -111,6 +111,8 @@ Just like with \icode{Cps} we have a printed version of semantic command trees. 
 (Fix ("f",["x"]) : Nil) [(Add x 1) (λ _x0 → _x0); ] (App f [41])
 \end{lstlisting}
 
+Semantic command trees are weel suited for defining CPS conversion. However, the abstract nature of semantic command trees prevents us from defining closure conversion without escaping from its abstraction. The fundamental problem is that continuations are defined as functions in the metalanguage instead of syntactic constructs in the IR itself. This prevents us from doing free variable analysis, which is at the heart of closure conversion. We propose syntactic command trees as a solution to this problem.
+
 \subsection{\label{subsection:syntree}Syntactic CPS Command Tree}
 Syntactic command trees have, as their name implies, syntactic representation of name binding in their constructors. The signature types of continuations are dropped to make the tree specific to the notion of values in \icode{Cps}: \icode{Val}. The signature types that indicate the number of subcontinuations and the presence of a join-point remain. We require a function to translate from our semantic command trees to syntactic command trees. Moreover, a new set of commands need to be made for the syntactic trees. A syntactic command tree specialized for CPS \icode{Tps} is defined by a GADT as follows.
 
@@ -319,7 +321,7 @@ _f2(41,_r0)
 \subsection{\label{subsection:closconvert2}Closure Conversion}
 Now that we have eliminated our effectful commands we can closure convert our tree. We will follow the same approach as in the previous version: collect names of expression and use these to construct records. We will make the assumption that the only place where expressions are named (and thus our environment is extended) is in the join-point of a node and in functions. We do not hoist our function definitions to the top level immediately. We need an extra function for this. Separating these two transformations also gives as a chance to better describe the type of the command tree before and after.
 
-Using monadic helper functions we can make this transformation somewhat easier to read. We see that the transformation only really effects \icode{Fix} and \icode{App} nodes. The type of \icode{hClos'} shows that we transform \icode{Fix} and \icode{Base} commands by adding a \icode{Record} command to our command tree. In the organization of our compiler we see the function \icode{hClos} used instead of \icode{hClos'}. \icode{hClos} is simply \icode{hClos'} instantiated with an empty list, e.g., \icode{hClos = hClos' []}.
+Using monadic helper functions we can make this transformation somewhat easier to read. We see that the transformation only really effects \icode{Fix} and \icode{App} nodes. The type of \icode{hClos'} shows that we transform \icode{Fix} and \icode{Base} commands by adding a \icode{Record} command to our command tree. In the organization of our compiler we see the function \icode{hClos} used instead of \icode{hClos'}. \icode{hClos} is simply \icode{hClos'} instantiated with an empty list \icode{hClos = hClos' []}.
 
 \begin{lstlisting}[language=Haskell]
 hClos' :: [String] -> Tps            (Fix :+: Base :+: cmd) Val -> 
@@ -451,9 +453,9 @@ _f2(__f2,41,__r0)
 The emit step now becomes even more trivial, as we have also eliminated records from our command tree and replaced them with malloc commands. We include this step for completeness and testing purposes. We could use the command tree output by \icode{hFix} to generate WebAssembly code. The mapping is one-to-one for expressions: every remaining tree command has a \icode{Wat} counterpart. However, the transformation of \icode{Val}s does need to change labels into integers.
 
 \begin{lstlisting}[language=Haskell]
-type Tps' = Tps (Malloc :+: Base :+: VoidCmd) Val
+type TpsWat = Tps (Malloc :+: Base :+: VoidCmd) Val
 
-tps2wat :: ([(String,[String],Tps')],Tps') -> Wat
+tps2wat :: ([(String,[String],TpsWat)],TpsWat) -> Wat
 tps2wat (fs,e) = Module fs' (go e)
   where ns :: [String]
         ns = map (\ (f,as,b) -> f) fs
@@ -481,13 +483,13 @@ In this section we will explore the design space for command trees and discusss 
 Although command trees provide a useful abstraction for language implementers, it does require knowledge of the block model for control flow. In the original version of LamToWat CPS conversion is implemented using a metacontinuation. This metacontinuation indicates what a program does next. When we transform a application we have to construct a return point function and pass it as the last argument to the new application. These manipulations of control flow become even more non-trivial when implementing imperative language constructs such as \icode{while} and \icode{for}. Moreover, when we have to use multiple metacontinuations in case we want to throw exceptions or break from a \icode{while} loop, the bookkeeping of metacontinuations becomes cumbersome. Command trees help the programmer somewhat by having these metacontinuations live inside the tree. The language implementer will still need to wrap certain parts of code inside a block and fetch the right continuation at the right point. The real burden is now put on the compiler writer, who has to compile the semantic command tree to a syntactic one.
 
 % interpreter + morphism
-In order to check intermediate results of the compiler we would like to have an interpreter for \icode{Tree} and \icode{Tps}. We now only have a pretty printer for both data types, but we want to be able to map \icode{Tree} and \icode{Tps} to a certain domain. The modular nature of \icode{Tps} requires some attention to make the interpreter modular as well. We would also like a function that transforms \icode{Tps} back into \icode{Tree} for the right set of commands. This would show the morphism between the two and give another check of the compilation process.
+In order to check intermediate results of the compiler we would like to have an interpreter for \icode{Tree} and \icode{Tps}. We now only have a pretty printer for both data types, but we want to be able to map \icode{Tree} and \icode{Tps} to a certain domain. The modular nature of \icode{Tps} requires some attention to make the interpreter modular as well. We would also like a function that transforms \icode{Tps} back into \icode{Tree} for the right set of commands. This would show the isomorphism between the two and give another check of the compilation process.
 
 % type constraints
-Our command trees have some types, but we would like our types to do even more. For example we want a type to indicate that an expression is closed after closure conversion, i.e., it does not have any free variables. Transforming syntactic command trees into semantic ones would function as a sort of type checking function. Typing closure conversion has been studied in Haskell and other languages \autocite{DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07, DBLP:conf/popl/MorrisettWCG98}. We tried to implement something similar in LamToWat but found Haskell's type system uncooperative.
+Our command trees have some types, but we would like our types to do even more. For example we want a type to indicate that an expression is closed after closure conversion, i.e., it does not have any free variables. Transforming syntactic command trees into semantic ones would function as a sort of type checking function. Typing closure conversion has been studied in Haskell and other languages \autocite{DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07, DBLP:conf/popl/MorrisettWCG98}. We tried to implement something similar in LamToWat but found Haskell's type system uncooperative \autocite{10.1145/2578854.2503786}.
 
 % better open unions
-The implementation of open unions we have used for making \icode{Tps} modular can be improved. There is still some extra work required of the programmer, e.g., using the function \icode{swap} before being able to apply \icode{hFix}. Open unions should behave like real sets and not suffer from their implementation as lists. There are some other implementations of open unions in the Haskell language which may provide the functionality we require \autocite{extensible-effects, open-union}.
+The implementation of open unions we have used for making \icode{Tps} modular can be improved. There is still some extra work required of the programmer, e.g., using the function \icode{swap} before being able to apply \icode{hFix}. Open unions should behave like real sets and not suffer from their implementation as lists. There are a number of other implementations of open unions in the Haskell language which may provide the functionality we require \autocite{extensible-effects, open-union}. Haskell's typeclasses could be used to derive the necessary operations on open unions.
 
 \section{\label{section:summarytree}Chapter Summary}
 In this chapter we have shown how the three shortcomings of our original compiler are eliminated by using command trees as IR. Each of the shortcomings addressed at the end of the previous chapter \ref{section:summarycps} is alleviated as follows. 

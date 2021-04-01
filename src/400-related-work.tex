@@ -233,13 +233,13 @@ data Fun a
 
 The back-end of will consist of three data types, which represent the different modules of \icode{Cps}. We combine these with a different version of the open unions we discussed in subsection \ref{subsection:openunion} and the functor fixpoint \icode{Fix} from subsection \ref{subsection:freemonad}. For the back-end we do use smart constructors to inject and project our data type.
 
-The compiler steps will look like a combination of the first and second version of the compiler with an additional step that translates between the two \icode{Cps} partitions. We are now to indicate what the steps really do, by pattern matching on one specific part and having declarative types.
+The compiler steps will look like a combination of the first and second version of the compiler with an additional step that translates between the two \icode{Cps} partitions. We are now able to indicate what the steps really do, by pattern matching on one specific part and having declarative types.
 
 \section{Compiler Validation and Extension}
 In this chapter we will discuss how tested that our compiler worked, the performance of the transformations and command trees, and some of the transformations we did not do because they were out of scope of this thesis.
 
 \subsection{Testing}
-In order to test if all transformations performed correctly we have writteen interpreters for the \icode{Lam}, \icode{Cps}, and \icode{Wat} languages/data types. This allowed us to test programs at different steps of the compilation process. We compare the results of all interpreters and check that they are the same. We did not write an interpreter for \icode{Tps}. We simply compared the interpreted result of the compiled \icode{Wat} generated from \icode{Tps} with that of the other interpreters.
+In order to test if all transformations performed correctly we have written interpreters for the \icode{Lam}, \icode{Cps}, and \icode{Wat} languages/data types. This allowed us to test programs at different steps of the compilation process. We compare the results of all interpreters and check that they are the same. We did not write an interpreter for \icode{Tps}. We simply compared the interpreted result of the compiled \icode{Wat} generated from \icode{Tps} with that of the other interpreters.
 
 Because we have defined a parser for the lambda calculus we can write lambda source files and automatically read them. However, because the domain of the lambda calculus is functions and integers and that of WebAssembly and \icode{Wat} is only integers, we need to make sure that our lambda calculus programs have integer results. Otherwise our comparison will fail, which it should do in this case.
 
@@ -250,20 +250,14 @@ How do command trees perform in comparison with monad transformers? The paper \c
 
 While testing both versions of LamToWat no noticeable difference was observed for both compile and execution time of the generated programs. Since programs were comparatively small, this does not give a good indication of how command trees would perform on larger bodies of code.
 
-\subsection{Other Transformations}
+\subsection{\label{subsection:othert}Other Transformations}
 Our compiler is a very simplified version of the compiler described in \citetitle{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396}. \citeauthor{DBLP:books/daglib/0022396} discusses a number of other transformations that improve the performance of the generated code and compile other language features.
 
 \begin{itemize}
-\item Compilation of pattern matching\\\\
-
-Pattern matching is a feature that benefits many functional languages. To compile pattern matching we can use \icode{switch} expressions. \icode{switch} expressions takes a value and a list of expressions. We would need to add a switch expression to \icode{Cps} in the first version LamToWat and a switch command to both \icode{Tree} and \icode{Tps}. Our source language would have \icode{case} statements. These would need to be compiled to \icode{switch} expressions. This translation can be optimized by way of a decision-tree algorithm.
-
-\item Beta expansion\\\\
-
-Beta expansion or the inlining of functions substitutes a function body for a function call. This increases performance of a program. Substitution of function bodies is dangerous if not performed correctly, because it may lead to large increase of the program size. To implement this feature in LamToWat we could create a new command that identifies function bodies as candidates for inline expansion. We would have one command for candidate functions and one for non-candidate functions. We may need an auxilary function to perform the candidate analysis.
-
 \item Closure Optimization\\\\
-
 Creating efficient closures is not trivial. LamToWat makes simple but inefficient closures. In order to create closures that are optimized for speed or memory usage we will need to perform variable analysis. We could create a command that is a special form of \icode{Fix} that carries this variable information with it. We can implement two transformations: one that does the analysis and one that creates the better closures. The syntactic nature of \icode{Tps} allows us to do this optimizationo.
-
+\item Compilation of pattern matching\\\\
+Pattern matching is a feature that benefits many functional languages. To compile pattern matching we can use \icode{switch} expressions. \icode{switch} expressions takes a value and a list of expressions. We would need to add a switch expression to \icode{Cps} in the first version LamToWat and a switch command to both \icode{Tree} and \icode{Tps}. Our source language would have \icode{case} statements. These would need to be compiled to \icode{switch} expressions. This translation can be optimized by way of a decision-tree algorithm.
+\item Inlining funcions\\\\
+The inlining of functions substitutes a function body for a function call. This increases performance of a program. Substitution of function bodies may be problematic if not performed correctly, because it may lead to a large increase in program size. To implement this feature in LamToWat we could create a new command that identifies function bodies as candidates for inline expansion. We would have one command for candidate functions and one for non-candidate functions. We may need an auxilary function to perform the candidate analysis.
 \end{itemize}
