@@ -14,7 +14,8 @@ The data types we will be using are \icode{Lam}, \icode{Cps}, and \icode{Wat}. T
 \begin{gather*}
   String \xto{str2lam} Lam \xto{lam2cps} Cps \xto{cps2cps} Cps \xto{cps2wat} Wat \xto{show} String
 \end{gather*}
-\caption{LamToWat Version 1: compiler organization}
+\includegraphics[width=1\textwidth]{./img/cps.png}
+\caption{LamToWat Version 1: compiler organization. New pieces of code are highlighted in grey.}
 \label{fig:lam2watv1org}
 \end{figure}
 

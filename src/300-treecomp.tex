@@ -8,8 +8,8 @@ In this chapter we propose command trees as an improvement upon the \icode{Cps} 
 \begin{gather*}
   String \xto{str2lam}\\
   Lam \xto{lam2tree}\\
-  Tree \quad Cmd \quad Val \xto{tree2tps}\\
-  T (Fix + Base) \xto{hClosure}\\
+  Tree \, Cmd \, Val \xto{tree2tps}\\
+  T (Fix + Base) \xto{hClos}\\
   T (Record + Fix + Base) \xto{hRecord}\\
   T (Malloc + Fix + Base) \xto{swap}\\
   T (Fix + Malloc + Base) \xto{hFix}\\
@@ -17,7 +17,8 @@ In this chapter we propose command trees as an improvement upon the \icode{Cps} 
   Wat \xto{show}\\
   String
 \end{gather*}
-\caption{LamToWat Version 2: compiler organization}
+\includegraphics[width=1\textwidth]{./img/tps.png}
+\caption{LamToWat Version 2: compiler organization. New pieces of code are highlighted in grey.}
 \label{fig:lam2watv2org}
 \end{figure}
 
@@ -136,7 +137,7 @@ A signature instance \icode{sig n b} tells us the following things:
 \item If the command has a continuation.
 \end{itemize}
 
-The set of syntactic commands does no longer require the commands related to compilation. These commands are given a syntactic representation within the tree. Therefore, our set of commands will match the original CPS commands almost completely with the exception of the \icode{DONE} expression. The commands are separated into modules. The separation is made with the compilation steps that follow in mind, which are mainly concerned with transforming functions.
+The set of syntactic commands does no longer require the commands related to compilation. These commands are given a syntactic representation within the tree. Therefore, our set of commands will match the original CPS commands almost completely with the exception of the \icode{DONE} expression. The commands are separated into modules. The separation is made with the compilation steps that follow in mind, which are mainly concerned with transforming functions. The \icode{VoidCmd} is used to write transformation generically. For example, we define a transformation of a command to another command as the function \icode{foo :: Tps (cmd :+: rest) Val -> Tps (cmd' :+: rest) Val}. This transformation should also work if the only command in the tree is \icode{cmd}. The tree would have type \icode{Tps cmd Val}, but this does not match because there is no \icode{rest}. This is where the \icode{VoidCmd} takes the place of \icode{rest}. This is some overhead of the way we defined our open unions.
 
 \begin{lstlisting}[language=Haskell]
 data Base :: Sig where
