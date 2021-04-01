@@ -49,7 +49,7 @@ prettyping =
 If we substitute our requests for commands and add subcontinuations to \icode{Compute} we obtain our command tree. In the next subsection we will derive command trees in another way with the free monad.
 
 \subsection{\label{subsection:freemonad}Free Monad}
-Both the command tree and the \icode{Compute} data type are a specialization of the free monad \autocite{swierstra2008data}. The free monad arises naturally when composing functors. In mathematical terms a functor is a mapping between categories \autocite{barr1990category}. In practical terms a functor is something that can mapped over. A list is an example of a functor. We will take as example functor a modified version of the \icode{Maybe} data type and show what happens when we compose it with itself \autocite{freemonadsforall}. It describes a programming language where we either \icode{Stop} with execution or sound a \icode{Bell} and continue.
+Both the command tree and the \icode{Compute} data type are a specialization of the free monad \autocite{swierstra2008data}. The free monad arises naturally when composing functors. In mathematical terms a functor is a mapping between categories \autocite{barr1990category}. In practical terms a functor is something that can be mapped over. A list is an example of a functor. We will take as our example functor a modified version of the \icode{Maybe} data type and show what happens when we compose it with itself \autocite{freemonadsforall}. It describes a programming language where we either \icode{Stop} with execution or sound a \icode{Bell} and continue.
 
 \begin{lstlisting}[language=Haskell]
 data Program a = Stop | Bell a
