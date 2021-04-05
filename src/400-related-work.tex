@@ -96,7 +96,7 @@ instance Functor (F f) where
   fmap g (F f h) = F f (g . h)
 \end{lstlisting}
 
-If we extend this idea to the free monad we obtain the freer monad. The functor the command tree in this thesis uses is of a more specialized nature related to \icode{Cps} and \icode{Val}.
+If we extend this idea to the free monad we obtain the freer monad. The functor \icode{Tps} uses is of a more specialized nature related to \icode{Cps} and \icode{Val}.
 
 \begin{lstlisting}[language=Haskell]
 data G f a where
@@ -111,7 +111,7 @@ Command trees can thus also be derived from the free monad which itself arises w
 \section{\label{section:denotationalsemantics}Modular Denotational Semantics}
 In this section we will give a short introduction to modular denotational semantics and then show how it relates to the work on the LamToWat compiler in this thesis. We will begin by stating some definitions. Denotational semantics is a method of giving meaning to programs by constructing mathematical objects which we often call 'values'. A programming language consists of multiple interacting parts called 'terms', like a function module or an arithmetic module. Terms can be given corresponding values separately. Then the meaning of the combined modules which make up a language is simply the sum or composition of these mappings. Originally there have been two popular approaches to solving this problem: algebraic effects \cite{DBLP:conf/tacs/CartwrightF94} and monad transformers \cite{DBLP:conf/popl/LiangHJ95}. To give meaning to a program we write a program called an 'interpreter' that maps terms in each module to their respective denotation.
 
-A denotational semantics is made up of three things: terms, values, and effects. We represent all three with Haskell constructs. A semantics is modular when are able to split and extend all three components. In Haskell open unions give us the power to do this for terms and values. To model effects we will need monads: either monad transformers or the free monad depending on which approach we choose. % They arise as a solution to the unstable denotation problem.
+A denotational semantics is made up of three things: terms, values, and effects. We represent all three with Haskell constructs. A semantics is modular when we are able to split and extend all three components. In Haskell open unions give us the power to do this for terms and values. To model effects we will need monads: either monad transformers or the free monad depending on which approach we choose. % They arise as a solution to the unstable denotation problem.
 
 Now we will give an example of a modular denotational semantics for a simple language that can manipulate one memory cell \icode{fetch, set} and do addition \icode{add, int}. We will illustrate the relation between monad transformers and algebraic effects \cite{DBLP:conf/haskell/SchrijversPWJ19}. One can be translated into the other and vice-versa. Both approaches allow one to construct an interpreter for our toy language. We will use Haskell typeclasses to represent modular interfaces for terms and highlight the relation by providing instances for both. The typeclasses are defined as follows
 
@@ -236,7 +236,7 @@ The back-end of will consist of three data types, which represent the different 
 The compiler steps will look like a combination of the first and second version of the compiler with an additional step that translates between the two \icode{Cps} partitions. We are now able to indicate what the steps really do, by pattern matching on one specific part and having declarative types.
 
 \section{Compiler Validation and Extension}
-In this chapter we will discuss how tested that our compiler worked, the performance of the transformations and command trees, and some of the transformations we did not do because they were out of scope of this thesis.
+In this section we will discuss how we validated that our compiler worked, the performance of the transformations and command trees, and some of the compiler transformations we did not implement because they were out of scope of this thesis.
 
 \subsection{Testing}
 In order to test if all transformations performed correctly we have written interpreters for the \icode{Lam}, \icode{Cps}, and \icode{Wat} languages/data types. This allowed us to test programs at different steps of the compilation process. We compare the results of all interpreters and check that they are the same. We did not write an interpreter for \icode{Tps}. We simply compared the interpreted result of the compiled \icode{Wat} generated from \icode{Tps} with that of the other interpreters.
@@ -255,9 +255,9 @@ Our compiler is a very simplified version of the compiler described in \citetitl
 
 \begin{itemize}
 \item Closure Optimization\\\\
-Creating efficient closures is not trivial. LamToWat makes simple but inefficient closures. In order to create closures that are optimized for speed or memory usage we will need to perform variable analysis. We could create a command that is a special form of \icode{Fix} that carries this variable information with it. We can implement two transformations: one that does the analysis and one that creates the better closures. The syntactic nature of \icode{Tps} allows us to do this optimizationo.
+Creating efficient closures is not trivial. LamToWat makes simple but inefficient closures. In order to create closures that are optimized for speed or memory usage we will need to perform variable analysis. We could create a command that is a special form of \icode{Fix} that carries this variable information with it. We can then implement two transformations: one that does the analysis and one that creates the better closures. The syntactic nature of \icode{Tps} allows us to do this optimization.
 \item Compilation of pattern matching\\\\
-Pattern matching is a feature that benefits many functional languages. To compile pattern matching we can use \icode{switch} expressions. \icode{switch} expressions takes a value and a list of expressions. We would need to add a switch expression to \icode{Cps} in the first version LamToWat and a switch command to both \icode{Tree} and \icode{Tps}. Our source language would have \icode{case} statements. These would need to be compiled to \icode{switch} expressions. This translation can be optimized by way of a decision-tree algorithm.
+Pattern matching is a feature that benefits many functional languages. To compile pattern matching we can use \icode{switch} expressions. \icode{switch} expressions takes a value and a list of expressions. We would need to add a switch expression to \icode{Cps} in the first version of LamToWat and a switch command to both \icode{Tree} and \icode{Tps}. Our source language would have \icode{case} statements. These would need to be compiled to \icode{switch} expressions. This translation can be optimized by way of a decision-tree algorithm.
 \item Inlining funcions\\\\
 The inlining of functions substitutes a function body for a function call. This increases performance of a program. Substitution of function bodies may be problematic if not performed correctly, because it may lead to a large increase in program size. To implement this feature in LamToWat we could create a new command that identifies function bodies as candidates for inline expansion. We would have one command for candidate functions and one for non-candidate functions. We may need an auxilary function to perform the candidate analysis.
 \end{itemize}
