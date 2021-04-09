@@ -37,7 +37,7 @@ The structure and monadic nature of command trees have already been discussed in
 \item An optional continuation (also called join-point) \icode{k}.
 \end{itemize}
 
-We will call the data type \icode{Tree} a semantic command tree and \icode{Tps} a syntactic command tree. This means that continuations will have a arrow type \icode{a -> Tree cmd b} in \icode{Tree} and a tuple type where the left element is a \icode{String} indicating the variable name \icode{(String,Tps cmd b)} in \icode{Tps}. Syntactic command trees allow us to analyse variable bindings syntactically, something we need for (free) variable analysis. LamToWat needs this information to perform closure conversion.
+We will call the data type \icode{Tree} a semantic command tree and \icode{Tps} a syntactic command tree. This means that continuations will have an arrow type \icode{a -> Tree cmd b} in \icode{Tree} and a tuple type where the left element is a \icode{String} indicating the variable name \icode{(String,Tps cmd b)} in \icode{Tps}. Syntactic command trees allow us to analyse variable bindings syntactically, something we need for (free) variable analysis. LamToWat needs this information to perform closure conversion.
 
 Command trees are implemented using Haskell's GADTs. A GADT gives us the power to add more types to our IR. The notation of a GADT is somewhat different than the notation of a normal data type. After the \icode{data} keyword we specify a name and type parameters, a \icode{where} keyword follows. Then the different constructors of the GADT are declared. The constructors are given a name followed by \icode{::}. The types of the arguments follow, separated by \icode{->}. Finally, we declare the constructor with its type parameters, which can relate to the types of the arguments.
 
@@ -178,7 +178,7 @@ def f(x):
 f(41)
 \end{lstlisting}
 
-\subsubsection{\label{subsection:openunion}Open Unions or Extensible Sums}
+\subsubsection{\label{subsection:openunion}Open Unions}
 In order to compile \icode{Lam} into \icode{Wat} we will have to make use of all our \icode{Tps} command modules. We will combine our commands using an open union or extensible sum data type. An open union can be viewed as a list of data types. More precisely, it is a binary tree which has data types as leaf nodes. \icode{:+:} is right-associative and has two constructors \icode{L} and \icode{R}, which inject a data type into the left or right side of the tree, respectively. Note that we can nest instances of open unions to create open unions. Open unions make our command tree somewhat modular, because we can add new commands to an existing union to represent new language features.
 
 \begin{lstlisting}[language=Haskell]

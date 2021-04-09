@@ -1,0 +1,26 @@
+\section{Compiler Validation and Extension}
+In this section we will discuss how we validated that our compiler worked, the performance of the transformations and command trees, and some of the compiler transformations we did not implement because they were out of scope of this thesis.
+
+\subsection{Testing}
+In order to test if all transformations performed correctly we have written interpreters for the \icode{Lam}, \icode{Cps}, and \icode{Wat} languages/data types. This allowed us to test programs at different steps of the compilation process. We compare the results of all interpreters and check that they are the same. We did not write an interpreter for \icode{Tps}. We simply compared the interpreted result of the compiled \icode{Wat} generated from \icode{Tps} with that of the other interpreters.
+
+Because we have defined a parser for the lambda calculus we can write lambda source files and automatically read them. However, because the domain of the lambda calculus is functions and integers and that of WebAssembly and \icode{Wat} is only integers, we need to make sure that our lambda calculus programs have integer results. Otherwise our comparison will fail, which it should do in this case.
+
+To automate the testing process we use Cabal \autocite{haskellcabal}, which allows the user to create a test suite. By simply executing the \icode{cabal test} command we run all automated tests. A folder of lambda calculus source files that are used for testsing is provided in the projects repository.
+
+\subsection{Performance}
+How do command trees perform in comparison with monad transformers? The paper \citetitle{DBLP:conf/haskell/KiselyovI15} \autocite{DBLP:conf/haskell/KiselyovI15} compares the \icode{mtl} library with their own extensible effects library based on the freer monad. Their results show that algebraic effects outperform monad transformers when we nest multiple effects. Since the Haskell compiler GHC has specific optimizations for the \icode{mtl} library and especially the \icode{State} monad, monad transformers are sometimes faster for single effects.
+
+While testing both versions of LamToWat no noticeable difference was observed for both compile and execution time of the generated programs. Since programs were comparatively small, this does not give a good indication of how command trees would perform on larger bodies of code.
+
+\subsection{\label{subsection:othert}Other Transformations}
+Our compiler is a very simplified version of the compiler described in \citetitle{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396}. \citeauthor{DBLP:books/daglib/0022396} discusses a number of other transformations that improve the performance of the generated code and compile other language features.
+
+\begin{itemize}
+\item Closure Optimization\\\\
+Creating efficient closures is not trivial. LamToWat makes simple but inefficient closures. In order to create closures that are optimized for speed or memory usage we will need to perform variable analysis. We could create a command that is a special form of \icode{Fix} that carries this variable information with it. We can then implement two transformations: one that does the analysis and one that creates the better closures. The syntactic nature of \icode{Tps} allows us to do this optimization.
+\item Compilation of pattern matching\\\\
+Pattern matching is a feature that benefits many functional languages. To compile pattern matching we can use \icode{switch} expressions. \icode{switch} expressions takes a value and a list of expressions. We would need to add a switch expression to \icode{Cps} in the first version of LamToWat and a switch command to both \icode{Tree} and \icode{Tps}. Our source language would have \icode{case} statements. These would need to be compiled to \icode{switch} expressions. This translation can be optimized by way of a decision-tree algorithm.
+\item Inlining funcions\\\\
+The inlining of functions substitutes a function body for a function call. This increases performance of a program. Substitution of function bodies may be problematic if not performed correctly, because it may lead to a large increase in program size. To implement this feature in LamToWat we could create a new command that identifies function bodies as candidates for inline expansion. We would have one command for candidate functions and one for non-candidate functions. We may need an auxilary function to perform the candidate analysis.
+\end{itemize}
