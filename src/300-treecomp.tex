@@ -11,9 +11,8 @@ In this chapter we propose command trees as an improvement upon the \icode{Cps} 
   Tree \, Cmd \, Val \xto{tree2tps}\\
   T (Fix + Base) \xto{hClos}\\
   T (Record + Fix + Base) \xto{hRecord}\\
-  T (Malloc + Fix + Base) \xto{swap}\\
   T (Fix + Malloc + Base) \xto{hFix}\\
-  ([(String,[String],T (Malloc + Base))], T (Malloc + Base)) \xto{tps2wat}\\
+  (Fix (T (Malloc + Base))) \xto{tps2wat}\\
   Wat \xto{show}\\
   String
 \end{gather*}
