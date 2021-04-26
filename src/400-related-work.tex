@@ -1,7 +1,7 @@
 % !TEX root = document.tex
 
 \chapter{\label{chap:related-work}Related Work and Discussion}
-In this chapter we will look at some of the theory behind the compilation scheme used in this thesis and discuss the shortcomings and improvements of our proposed command tree solution.
+In this chapter we will look at some of the theory behind the compilation scheme used in this thesis, beginning with monads.
 
 \section{\label{section:opmonad}The Operational Monad}
 In this section we will derive the command tree monad and show how it relates to modular denotational semantics. We follow the style of the paper \citetitle{DBLP:conf/haskell/KiselyovI15} \autocite{DBLP:conf/haskell/KiselyovI15}, which gives a derivation of the freer monad, a close relative of the command tree. The main problem the command tree and its relatives address is: expressing side-effectful computation in a composable/modular manner. We will start by unpacking this definition.

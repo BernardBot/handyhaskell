@@ -82,15 +82,14 @@ data Cps
   | FIX [Fun] Cps
 \end{lstlisting}
 
-The \icode{Cps} data type guarantees that compiler transformations can be easily implemented by enforcing the following properties. CPS also requires all user functions to have an extra continuation argument. This requirement is not enforced by the data type, but needs to be fulfilled in order for it to be proper CPS.
-
+The \icode{Cps} data type guarantees that compiler transformations can be easily implemented by enforcing the following properties:
 \begin{itemize}
 \item Functions do not return, instead the last thing a function does is call a continuation.
 \item Function parameters can only be values.
 \item All intermediate values have names.
 \end{itemize}
 
-To illustrate how the \icode{Cps} data type is used we will translate the lambda calculus example \icode{(\ x -> x + 1) 41} to \icode{Cps}. We define a function in a \icode{FIX} block with name \icode{f} and argument \icode{x}. The body of this function adds \icode{x} and 1, names the result \icode{r}, and returns this result. Finally, we apply \icode{f} to 42.
+CPS also requires all user functions to have an extra continuation argument. This requirement is not enforced by the data type, but needs to be fulfilled in order for it to be proper CPS. To illustrate how the \icode{Cps} data type is used we will translate the lambda calculus example \icode{(\ x -> x + 1) 41} to \icode{Cps}. We define a function in a \icode{FIX} block with name \icode{f} and argument \icode{x}. The body of this function adds \icode{x} and 1, names the result \icode{r}, and returns this result. Finally, we apply \icode{f} to 42.
 
 \begin{lstlisting}[language=Haskell]
   FIX [("f", ["x"], ADD (VAR "x") (INT 1) "r" (DONE "r"))] (APP (VAR "f") [INT 41])

@@ -8,7 +8,7 @@ In this chapter we propose command trees as an improvement upon the \icode{Cps} 
 \begin{gather*}
   String \xto{str2lam}\\
   Lam \xto{lam2tree}\\
-  Tree \, Cmd \, Val \xto{tree2tps}\\
+  Tree Cmd Val \xto{tree2tps}\\
   T (Fix + Base) \xto{hClos}\\
   T (Record + Fix + Base) \xto{hRecord}\\
   T (Fix + Malloc + Base) \xto{hFix}\\
@@ -479,10 +479,10 @@ tps2wat (fs,e) = Module fs' (go e)
 In this section we will explore the design space for command trees and discusss the shortcomings of the second version of LamToWat. During the development of the LamToWat compiler a number of different command trees were examined to see if they could provide us with a replacement for \icode{Cps}. We will discuss some of the relevant features here.
 
 % blocks
-Although command trees provide a useful abstraction for language implementers, it does require knowledge of the block model for control flow. In the original version of LamToWat CPS conversion is implemented using a metacontinuation. This metacontinuation indicates what a program does next. When we transform a application we have to construct a return point function and pass it as the last argument to the new application. These manipulations of control flow become even more non-trivial when implementing imperative language constructs such as \icode{while} and \icode{for}. Moreover, when we have to use multiple metacontinuations in case we want to throw exceptions or break from a \icode{while} loop, the bookkeeping of metacontinuations becomes cumbersome. Command trees help the programmer somewhat by having these metacontinuations live inside the tree. The language implementer will still need to wrap certain parts of code inside a block and fetch the right continuation at the right point. The real burden is now put on the compiler writer, who has to compile the semantic command tree to a syntactic one.
+Although command trees provide a useful abstraction for language implementers, it does require knowledge of the block model for control flow. In the original version of LamToWat CPS conversion is implemented using a metacontinuation. This metacontinuation indicates what a program does next. When we transform a application we have to construct a return point function and pass it as the last argument to the new application. These manipulations of control flow become even more non-trivial when implementing imperative language constructs such as \icode{while} and \icode{for}. Moreover, when we have to use multiple metacontinuations in case we want to throw exceptions or break from a \icode{while} loop, the bookkeeping of metacontinuations becomes cumbersome. Command trees help the programmer somewhat by having these metacontinuations live inside the tree. The language implementer will still need to wrap certain parts of code inside a block and fetch the right continuation at the right point. The responsibility is now put on the compiler writer, who has to compile the semantic command tree to a syntactic one.
 
 % interpreter + morphism
-In order to check intermediate results of the compiler we would like to have an interpreter for \icode{Tree} and \icode{Tps}. We now only have a pretty printer for both data types, but we want to be able to map \icode{Tree} and \icode{Tps} to a certain domain. The modular nature of \icode{Tps} requires some attention to make the interpreter modular as well. We would also like a function that transforms \icode{Tps} back into \icode{Tree} for the right set of commands. This would show the isomorphism between the two and give another check of the compilation process.
+In order to check intermediate results of the compiler we would like to have an interpreter for \icode{Tree} and \icode{Tps}. We now only have a pretty printer for both data types, but we would like to map \icode{Tree} and \icode{Tps} to a certain domain. The modular nature of \icode{Tps} requires some attention to make the interpreter modular as well. We would also like a function that transforms \icode{Tps} back into \icode{Tree} for the right set of commands. This would show the isomorphism between the two and give another check of the compilation process.
 
 % type constraints
 Our command trees have some types, but we would like our types to do even more. For example we want a type to indicate that an expression is closed after closure conversion, i.e., it does not have any free variables. Transforming syntactic command trees into semantic ones would work as a sort of type checking function. Typing closure conversion has been studied in Haskell and other languages \autocite{DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07, DBLP:conf/popl/MorrisettWCG98}. We tried to implement something similar in LamToWat but found Haskell's type system uncooperative \autocite{10.1145/2578854.2503786}.
@@ -491,7 +491,7 @@ Our command trees have some types, but we would like our types to do even more. 
 The implementation of open unions we have used for making \icode{Tps} modular can be improved. There is still some extra work required of the programmer, e.g., using the function \icode{swap} before being able to apply \icode{hFix}. Open unions should behave like real sets and not suffer from their implementation as lists. There are a number of other implementations of open unions in the Haskell language which may provide the functionality we require \autocite{extensible-effects, open-union}. Haskell's typeclasses could be used to derive the necessary operations on open unions.
 
 \section{\label{section:summarytree}Chapter Summary}
-In this chapter we have shown how the three shortcomings of our original compiler are eliminated by using command trees as IR. Each of the shortcomings addressed at the end of the previous chapter \ref{section:summarycps} is alleviated as follows. 
+In this chapter we have shown how the three shortcomings of our original compiler are eliminated by using command trees as IR. Each of the shortcomings addressed at the end of the previous chapter \ref{section:summarycps} is alleviated as follows: 
 
 \begin{itemize}
 \item CPS conversion becomes easier to specify by using blocks in \icode{lam2tree}
