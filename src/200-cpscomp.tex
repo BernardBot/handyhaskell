@@ -228,7 +228,11 @@ We see two functions \icode{_f2} and \icode{_r0} have been created. The first re
 \subsection{\label{section:closconvert}Closure Conversion}
 Closure conversion transforms the \icode{Cps} data type into the \icode{Cps} data type where functions do not contain free variables. The free variables of a function are passed to the function via an extra argument. We will package a function with its free variables, this package is called a 'closure'.
 
-There are many approaches to generating closures. We take an approach optimized for simplicity. We implement closures as records, where the first element is a function pointer (implemented as a \icode{LABEL}) and the second element is the environment of free variables. We use effects to keep track of variables (\icode{ask},\icode{local}) in scope and to hoist functions to the top-level (\icode{tell}).
+There are many approaches to generating closures. We take an approach optimized for simplicity. We implement closures as records, where the first element is a function pointer (implemented as a \icode{LABEL}) and the second element is the environment of free variables. We use effects to keep track of variables (\icode{ask},\icode{local}) in scope and to hoist functions to the top-level (\icode{tell}), which makes the type of \icode{c2c} the following:
+
+\begin{lstlisting}[language=Haskell]
+c2c :: Cps -> WriterT [Fun Cps] (Reader [Var]) Cps
+\end{lstlisting}
 
 The cases for \icode{FIX} and \icode{APP} are at the heart of the transformation. For the other constructors we simply update the environment with their assigned names.
 
