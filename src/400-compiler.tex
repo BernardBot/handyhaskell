@@ -4,8 +4,6 @@ In this section we will discuss how we validated that our compiler worked, the p
 \section{Testing}
 In order to test if all transformations performed correctly we have written interpreters for the \icode{Lam}, \icode{Cps}, and \icode{Wat} languages/data types. This allowed us to test programs at different steps of the compilation process. We compare the results of all interpreters and check that they are the same. We did not write an interpreter for \icode{Tps}. We simply compared the interpreted result of the compiled \icode{Wat} generated from \icode{Tps} with that of the other interpreters.
 
-Because we have defined a parser for the lambda calculus we can write lambda source files and automatically read them. However, because the domain of the lambda calculus is functions and integers and that of WebAssembly and \icode{Wat} is only integers, we need to make sure that our lambda calculus programs have integer results. Otherwise our comparison will fail, which it should do in this case.
-
 To automate the testing process we use Cabal \autocite{haskellcabal}, which allows the user to create a test suite. By simply executing the \icode{cabal test} command we run all automated tests. A folder of lambda calculus source files that are used for testsing is provided in the projects repository.
 
 \section{Performance}

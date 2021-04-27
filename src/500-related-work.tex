@@ -1,6 +1,6 @@
 % !TEX root = document.tex
 
-\chapter{\label{chap:related-work}Related Work and Discussion}
+\chapter{\label{chap:related-work}Related Work}
 In this chapter we will look at some of the theory behind the compilation scheme used in this thesis, beginning with monads.
 
 \section{\label{section:opmonad}The Operational Monad}
@@ -206,9 +206,9 @@ data Cps a
   | ADD Val Val (Val -> Cps a)
   | RECORD [Val] (Val -> Cps a)
   | SELECT Int Val (Val -> Cps a)
-  | FIX [(String,[String],Cps Val)] (Cps a)
+  | FIX [Fun (Cps Val)] (Cps a)
   -- embedded effects
-  | FRESH String (String -> Cps a)
+  | FRESH Var (Var -> Cps a)
   | GETK (Val -> Cps a)
   | SETK Val (Cps a)
   | BLOCK (Cps Val) (Val -> Cps a)
@@ -218,16 +218,16 @@ Our original constructors are here combined with embedded effects. These effects
 
 \begin{lstlisting}[language=Haskell]
 data Base a
-  = ADD' Val Val String a
+  = ADD' Val Val Var a
   | APP' Val [Val]
   | DONE' Val
 
 data Record a
-  = RECORD' [Val] String a
-  | SELECT' Int Val String a
+  = RECORD' [Val] Var a
+  | SELECT' Int Val Var a
 
 data Fun a
-  = FIX' [(String, [String], a)] a
+  = FIX' [(Fun a)] a
 \end{lstlisting}
 
 The back-end of will consist of three data types, which represent the different modules of \icode{Cps}. We combine these with a different version of the open unions we discussed in subsection \ref{subsection:openunion} and the functor fixpoint \icode{Fix} from subsection \ref{subsection:freemonad}. For the back-end we do use smart constructors to inject and project our data type.

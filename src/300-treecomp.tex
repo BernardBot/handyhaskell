@@ -166,7 +166,7 @@ add v1 v2 x = liftT (inj (Add v1 v2)) Nil x (Leaf ())
 \end{lstlisting}
 
 \section{\label{section:treensforms}Tree Transformations}
-Transformations for the new version of LamToWat will be implemented as Haskell functions. We will program mostly using \icode{do}-notation. 
+Transformations for the new version of LamToWat will be implemented as Haskell functions. We will program mostly using \icode{do}-notation. Although command trees may be printed, we have elided the printed examples in the closure conversion and emmitting sections, because the programs would become very large and not help with understanding the transformations. Moreover, it would be very similar to the printed programs in the first version.
 
 \subsection{\label{subsection:cpsconvert2}CPS Conversion}
 Using \icode{Tree}, we can define an improved CPS conversion. The function is easier to read and write. We no longer have a metacontinuation hidden inside a continuation monad. This simplifies the notation significantly. We still operate in a monad, however, this monad is the command tree. The order of our listed operations matches the order of our final program more closely. There are some details that spoil the declarativity of our conversion somewhat. The advantages and disadvantages of our new approach become clear when we examine the conversion of a lambda abstraction in comparison to the one in the previous version of LamToWat.
@@ -384,18 +384,20 @@ hFix (Node (L (Fix fxs)) bs (Some ("",k))) = (fs'++fs,k')
 The emit step now becomes even more trivial, as we have also eliminated records from our command tree and replaced them with malloc commands. We include this step for completeness and testing purposes. We could use the command tree output by \icode{hFix} to generate WebAssembly code. The mapping is one-to-one for expressions: every remaining tree command has a \icode{Wat} counterpart. However, the transformation of \icode{Val}s does need to change labels into integers.
 
 \begin{lstlisting}[language=Haskell]
+tps2wat :: WatTps -> Wat
 tps2wat (fs,e) = (map (fmap t2w) fs,t2w e)
-    where ns = map (\ (f,as,b) -> f) fs
+  where ns = map (\ (f,as,b) -> f) fs
 
-          t2w (Leaf v)                                       = Done (v2v v)
-          t2w (Node    (L (T.Malloc i))    Nil (Some (x,k))) = Malloc i x (t2w k)
-          t2w (Node    (L (T.Load i v))    Nil (Some (x,k))) = Load i (v2v v) x (t2w k)
-          t2w (Node    (L (T.Store i s t)) Nil (Some (_,k))) = Store i (v2v s) (v2v t) (t2w k)
-          t2w (Node (R (L (T.Add v1 v2)))  Nil (Some (x,k))) = Add (v2v v1) (v2v v2) x (t2w k)
-          t2w (Node (R (L (T.App v vs)))   Nil None)         = App (v2v v) (map v2v vs)
+        t2w (Leaf v) = Done (v2v v)
+        t2w (Node cmd ks k) = case (cmd,ks,k) of
+          ((L (T.Malloc i)),      Nil, (Some (x,k))) -> Malloc i x (t2w k)
+          ((L (T.Load i v)),      Nil, (Some (x,k))) -> Load i (v2v v) x (t2w k)
+          ((L (T.Store i s t)),   Nil, (Some (_,k))) -> Store i (v2v s) (v2v t) (t2w k)
+          ((R (L (T.Add v1 v2))), Nil, (Some (x,k))) -> Add (v2v v1) (v2v v2) x (t2w k)
+          ((R (L (T.App v vs))),  Nil, None)         -> App (v2v v) (map v2v vs)
 
-          v2v (LABEL x) = INT $ fromJust $ x `elemIndex` ns
-          v2v v         = v
+        v2v (LABEL x) = INT $ fromJust $ x `elemIndex` ns
+        v2v v         = v
 \end{lstlisting}
 
 \section{\label{section:ctreebetter}Command Tree Improvements}
@@ -405,7 +407,7 @@ In this section we will explore the design space for command trees and discusss 
 Although command trees provide a useful abstraction for language implementers, it does require knowledge of the block model for control flow. In the original version of LamToWat CPS conversion is implemented using a metacontinuation. This metacontinuation indicates what a program does next. When we transform a application we have to construct a return point function and pass it as the last argument to the new application. These manipulations of control flow become even more non-trivial when implementing imperative language constructs such as \icode{while} and \icode{for}. Moreover, when we have to use multiple metacontinuations in case we want to throw exceptions or break from a \icode{while} loop, the bookkeeping of metacontinuations becomes cumbersome. Command trees help the programmer somewhat by having these metacontinuations live inside the tree. The language implementer will still need to wrap certain parts of code inside a block and fetch the right continuation at the right point. The responsibility is now put on the compiler writer, who has to compile the semantic command tree to a syntactic one.
 
 % interpreter + morphism
-In order to check intermediate results of the compiler we would like to have an interpreter for \icode{Tree} and \icode{Tps}. We now only have a pretty printer for both data types, but we would like to map \icode{Tree} and \icode{Tps} to a certain domain. The modular nature of \icode{Tps} requires some attention to make the interpreter modular as well. We would also like a function that transforms \icode{Tps} back into \icode{Tree} for the right set of commands. This would show the isomorphism between the two and give another check of the compilation process.
+In order to check intermediate results of the compiler we would like to have an interpreter for \icode{Tree} and \icode{Tps}. We can now only print both data types, but we would like to map \icode{Tree} and \icode{Tps} to a certain domain. The modular nature of \icode{Tps} requires some attention to make the interpreter modular as well. We would also like a function that transforms \icode{Tps} back into \icode{Tree} for the right set of commands. This would show the isomorphism between the two and give another check of the compilation process.
 
 % type constraints
 Our command trees have some types, but we would like our types to do even more. For example we want a type to indicate that an expression is closed after closure conversion, i.e., it does not have any free variables. Transforming syntactic command trees into semantic ones would work as a sort of type checking function. Typing closure conversion has been studied in Haskell and other languages \autocite{DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07, DBLP:conf/popl/MorrisettWCG98}. We tried to implement something similar in LamToWat but found Haskell's type system uncooperative \autocite{10.1145/2578854.2503786}.
