@@ -216,7 +216,7 @@ The \icode{Tree} that is output by \icode{lam2tree} contains commands that repre
 
 \begin{lstlisting}[language=Haskell]
 t2t :: Tree (Comp :+: Fix :+: Base) Val ->
-       StateT Int (Reader [(String,Val)]) Tps (Fix :+: Base :+: Empty) Val
+       StateT Int (Reader [(Var,Val)]) Tps (Fix :+: Base :+: Empty) Val
 \end{lstlisting}
 
 Notice that we add the \icode{Empty} command to the end of the signature of \icode{Tps}. \icode{t2t} itself is defined as follows:
@@ -407,7 +407,7 @@ In this section we will explore the design space for command trees and discusss 
 Although command trees provide a useful abstraction for language implementers, it does require knowledge of the block model for control flow. In the original version of LamToWat CPS conversion is implemented using a metacontinuation. This metacontinuation indicates what a program does next. When we transform an application we have to construct a return point function and pass it as the last argument to the new application. These manipulations of control flow become even more non-trivial when implementing imperative language constructs such as \icode{while} and \icode{for}. Moreover, when we have to use multiple metacontinuations in case we want to throw exceptions or break from a \icode{while} loop, the bookkeeping of metacontinuations becomes cumbersome. Command trees help the programmer somewhat by having these metacontinuations live inside the tree. The language implementer will still need to wrap certain parts of code inside a block and fetch the right continuation at the right point. The responsibility is now put on the compiler writer, who has to compile the semantic command tree to a syntactic one.
 
 % interpreter + morphism
-In order to check intermediate results of the compiler we would like to have an interpreter for \icode{Tree} and \icode{Tps}. We can now only print both data types, but we would like to map \icode{Tree} and \icode{Tps} to a certain domain. The modular nature of \icode{Tps} requires some attention to make the interpreter modular as well. We would also like a function that transforms \icode{Tps} back into \icode{Tree} for the right set of commands. This would show the isomorphism between the two and give another check of the compilation process.
+In order to check intermediate results of the compiler after the initial CPS conversion, we would like to have an interpreter for \icode{Tree}. We can now only print \icode{Tree}, but we would like to map \icode{Tree} to a common domain. The abstract nature of \icode{Tree} is the main problem when writing an interpreter for it that is modular in the set of commands. A function called \icode{tps2tree} that transforms \icode{Tps} back into \icode{Tree} for the right set of commands would serve a similar purpose. This would show the isomorphism between the two and give another check of the compilation process.
 
 % type constraints
 Our command trees have some types, but we would like our types to do even more. For example we want a type to indicate that an expression is closed after closure conversion, i.e., it does not have any free variables. Transforming syntactic command trees into semantic ones would work as a sort of type checking function. Typing closure conversion has been studied in Haskell and other languages \autocite{DBLP:conf/haskell/GuillemetteM07, DBLP:conf/pldi/Chlipala07, DBLP:conf/popl/MorrisettWCG98}. We tried to implement something similar in LamToWat but found Haskell's type system uncooperative \autocite{10.1145/2578854.2503786}.

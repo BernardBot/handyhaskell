@@ -2,7 +2,7 @@
 In this section we will discuss how we validated that our compiler worked and the performance of the transformations and command trees. We will also address some of the compiler transformations we did not implement because they were out of scope of this thesis.
 
 \section{Testing}
-In order to test if all transformations performed correctly we have written interpreters for the \icode{Lam}, \icode{Cps}, and \icode{Wat} languages/data types. This allowed us to test programs at different steps of the compilation process. We compare the interpreter's results and check that they are the same. We did not write an interpreter for \icode{Tps}. We simply compared the interpreted result of the compiled \icode{Wat} generated from \icode{Tps} with that of the other interpreters.
+In order to test if all transformations performed correctly we have written interpreters for the \icode{Lam}, \icode{Cps}, \icode{Wat}, and \icode{Tps} languages/data types. This allowed us to test programs at different steps of the compilation process. We compare the interpreter's results and check that they are the same. Of course this does not guarantee equality between programs. We could obtain the expected result by a wrong calculation, or by using other effects.
 
 To automate the testing process we use Cabal \autocite{haskellcabal}, which allows us to create a test suite. By simply executing the \icode{cabal test} command we run all automated tests. A folder of lambda calculus source files that are used for testsing is provided in the projects repository.
 
