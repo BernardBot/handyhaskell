@@ -2,4 +2,587 @@
 
 
 \chapter{\label{apdx:a}A}
-Appendix here.
+
+\section{\label{section:v1printsimple}LamToWat Version 1 Transformation of: ((\textbackslash x -> x + 1) 41)}
+\begin{landscape}
+\begin{lstlisting}
+         App
+          |
+       -----------
+      /           \
+   Lam "x"      INT 41
+      |
+     Add
+      |
+    -------
+   /       \
+VAR "x"  INT 1
+
+\end{lstlisting}
+Graph representation of the AST of our simple lambda expression \icode{(\ x -> x + 1) 41}.
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}
+                                       Fix
+                                        |
+       -----------------------------------------
+      /                                         \
+      fs                                       Fix
+      |                                         |
+"_r0" ["_x1"]                ---------------------------------
+      |                     /                                 \
+  VAR "_x1"                 fs              App (LABEL "_f2") [INT 41,LABEL "_r0"]
+                            |
+                    "_f2" ["x","_k3"]
+                            |
+               _x4 = Add (VAR "x") (INT 1)
+                            |
+               App (VAR "_k3") [VAR "_x4"]
+
+\end{lstlisting}
+In the graph above we see how our simple lambda calculus program is converted with \icode{lam2cps}. Freshly generated variables are prefixed with a \icode{_}. We see two functions \icode{_f2} and \icode{_r0} have been created. The first represents our original function with an additional continuation argument \icode{_k3}. The body of the function adds the number one to \icode{x} and passes the result to the continuation. The \icode{_r0} function represents a return point. In this case the return point of the entire program as it uses the \icode{Val} constructor in its body. Finally, we see the call to \icode{_f2} where we pass the original argument and the \icode{_r0} function as the continuation.
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}
+                                                              Fix
+                                                               |
+                                       ---------------------------------------------------------------
+                                      /                                                               \
+                                      fs                                                       _env = Record []
+                                      |                                                               |
+                ---------------------------------------                             __r0 = Record [LABEL "_r0",VAR "_env"]
+               /                                       \                                              |
+    "_r0" ["_closure","_x1"]              "_f2" ["_closure","x","_k3"]              __f2 = Record [LABEL "_f2",VAR "_env"]
+               |                                       |                                              |
+_env = Select 1 (VAR "_closure")        _env = Select 1 (VAR "_closure")       App (LABEL "_f2") [VAR "__f2",INT 41,VAR "__r0"]
+               |                                       |
+           VAR "_x1"                      _x4 = Add (VAR "x") (INT 1)
+                                                       |
+                                  _env = Record [VAR "x",VAR "_k3",VAR "_x4"]
+                                                       |
+                                          __k3 = Select 0 (VAR "_k3")
+                                                       |
+                                     App (VAR "__k3") [VAR "_k3",VAR "_x4"]
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}
+                                                        Fix
+                                                         |
+                                    ---------------------------------------------------------
+                                   /                                                         \
+                                   fs                                                 _env = Malloc 0
+                                   |                                                         |
+                -----------------------------------                                   __r0 = Malloc 2
+               /                                   \                                         |
+    "_r0" ["_closure","_x1"]          "_f2" ["_closure","x","_k3"]              Store 0 (VAR "__r0") (INT 0)
+               |                                   |                                         |
+_env = Load 1 (VAR "_closure")      _env = Load 1 (VAR "_closure")           Store 1 (VAR "__r0") (VAR "_env")
+               |                                   |                                         |
+           VAR "_x1"                  _x4 = Add (VAR "x") (INT 1)                     __f2 = Malloc 2
+                                                   |                                         |
+                                            _env = Malloc 3                     Store 0 (VAR "__f2") (INT 1)
+                                                   |                                         |
+                                     Store 0 (VAR "_env") (VAR "x")          Store 1 (VAR "__f2") (VAR "_env")
+                                                   |                                         |
+                                    Store 1 (VAR "_env") (VAR "_k3")     App (INT 1) [VAR "__f2",INT 41,VAR "__r0"]
+                                                   |
+                                    Store 2 (VAR "_env") (VAR "_x4")
+                                                   |
+                                       __k3 = Load 0 (VAR "_k3")
+                                                   |
+                                 App (VAR "__k3") [VAR "_k3",VAR "_x4"]
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\section{\label{section:v1printnest}LamToWat Version 1 Transformation of: ((\textbackslash x y -> x + y) 13 29)}
+
+\begin{landscape}
+\begin{lstlisting}
+              App
+               |
+            ----------------
+           /                \
+          App             INT 29
+           |
+        ------------
+       /            \
+    Lam "x"       INT 13
+       |
+    Lam "y"
+       |
+      Add
+       |
+    --------
+   /        \
+VAR "x"  VAR "y"
+
+\end{lstlisting}
+Graph representation of the AST of our simple lambda expression \icode{(\ x y -> x + y) 13 29}.
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{9}{10}\selectfont\ttfamily]
+                                                                           Fix
+                                                                            |
+       ----------------------------------------------------------------------------
+      /                                                                            \
+      fs                                                                          Fix
+      |                                                                            |
+"_r0" ["_x1"]                    ---------------------------------------------------------------------
+      |                         /                                                                     \
+  VAR "_x1"                     fs                                                                   Fix
+                                |                                                                     |
+                          "_r2" ["_x3"]                                            --------------------------------------------------
+                                |                                                 /                                                  \
+               App (VAR "_x3") [INT 29,LABEL "_r0"]                               fs                               App (LABEL "_f4") [INT 13,LABEL "_r2"]
+                                                                                  |
+                                                                          "_f4" ["x","_k5"]
+                                                                                  |
+                                                                                 Fix
+                                                                                  |
+                                                                    ------------------------------
+                                                                   /                              \
+                                                                   fs               App (VAR "_k5") [LABEL "_f6"]
+                                                                   |
+                                                           "_f6" ["y","_k7"]
+                                                                   |
+                                                     _x8 = Add (VAR "x") (VAR "y")
+                                                                   |
+                                                      App (VAR "_k7") [VAR "_x8"]
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{6.25}{7.25}\selectfont\ttfamily]
+                                                                                                                   Fix
+                                                                                                                    |
+                                                                                            ---------------------------------------------------------------------------------------------------------------------
+                                                                                           /                                                                                                                     \
+                                                                                           fs                                                                                                             _env = Record []
+                                                                                           |                                                                                                                     |
+                ----------------------------------------------------------------------------------------------------------------------------------------------------                           __r2 = Record [LABEL "_r2",VAR "_env"]
+               /                                        |                                                       |                                                   \                                            |
+    "_r0" ["_closure","_x1"]                 "_r2" ["_closure","_x3"]                              "_f6" ["_closure","y","_k7"]                        "_f4" ["_closure","x","_k5"]            __f4 = Record [LABEL "_f4",VAR "_env"]
+               |                                        |                                                       |                                                   |                                            |
+_env = Select 1 (VAR "_closure")         _env = Select 1 (VAR "_closure")                        _env = Select 1 (VAR "_closure")                    _env = Select 1 (VAR "_closure")     App (LABEL "_f4") [VAR "__f4",INT 13,VAR "__r2"]
+               |                                        |                                                       |                                                   |
+           VAR "_x1"                        _env = Record [VAR "_x3"]                               x = Select 0 (VAR "_env")                       _env = Record [VAR "x",VAR "_k5"]
+                                                        |                                                       |                                                   |
+                                      __r0 = Record [LABEL "_r0",VAR "_env"]                       _k5 = Select 1 (VAR "_env")                    __f6 = Record [LABEL "_f6",VAR "_env"]
+                                                        |                                                       |                                                   |
+                                           __x3 = Select 0 (VAR "_x3")                            _x8 = Add (VAR "x") (VAR "y")                        __k5 = Select 0 (VAR "_k5")
+                                                        |                                                       |                                                   |
+                                  App (VAR "__x3") [VAR "_x3",INT 29,VAR "__r0"]  _env = Record [VAR "x",VAR "_k5",VAR "y",VAR "_k7",VAR "_x8"]  App (VAR "__k5") [VAR "_k5",VAR "__f6"]
+                                                                                                                |
+                                                                                                   __k7 = Select 0 (VAR "_k7")
+                                                                                                                |
+                                                                                              App (VAR "__k7") [VAR "_k7",VAR "_x8"]
+
+\end{lstlisting}
+If we take a look at the above graphic, the first thing we notice is that functions are no longer nested; there is only one, top-level \icode{FIX}. We also see the addition of \icode{Record} and \icode{Select} expressions. We have four functions representing our original two functions and the two applications. We can see how the original function bodies are prefixed with opening closures and postfixed with creating closures before application. All functions have an extra \icode{_closure} argument. If a function was originally nested more deeply, it will open and create a closure with more elements, because there will be more variables in scope. This is the case for the function \icode{_f6}, where the addition of \icode{x} and \icode{y} happens. The first closure that is created in our program before calling \icode{_f4} is empty. This is because at the top level there are no free variables. The two closures for \icode{_f4} and \icode{_r2} named \icode{__f4} and \icode{__r2}, respectively, are a sort of dummy closure only containing a function pointer and a empty environment.
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{6}{7.5}\selectfont\ttfamily]
+                                                                                                    Fix
+                                                                                                     |
+                                                                                ------------------------------------------------------------------------------------------------------
+                                                                               /                                                                                                      \
+                                                                               fs                                                                                              _env = Malloc 0
+                                                                               |                                                                                                      |
+                ----------------------------------------------------------------------------------------------------------------------------                                   __r2 = Malloc 2
+               /                                       |                                           |                                        \                                         |
+    "_r0" ["_closure","_x1"]                "_r2" ["_closure","_x3"]                  "_f6" ["_closure","y","_k7"]             "_f4" ["_closure","x","_k5"]              Store 0 (VAR "__r2") (INT 1)
+               |                                       |                                           |                                        |                                         |
+_env = Load 1 (VAR "_closure")          _env = Load 1 (VAR "_closure")              _env = Load 1 (VAR "_closure")           _env = Load 1 (VAR "_closure")           Store 1 (VAR "__r2") (VAR "_env")
+               |                                       |                                           |                                        |                                         |
+           VAR "_x1"                            _env = Malloc 1                         x = Load 0 (VAR "_env")                      _env = Malloc 2                           __f4 = Malloc 2
+                                                       |                                           |                                        |                                         |
+                                        Store 0 (VAR "_env") (VAR "_x3")               _k5 = Load 1 (VAR "_env")              Store 0 (VAR "_env") (VAR "x")             Store 0 (VAR "__f4") (INT 3)
+                                                       |                                           |                                        |                                         |
+                                                __r0 = Malloc 2                      _x8 = Add (VAR "x") (VAR "y")           Store 1 (VAR "_env") (VAR "_k5")         Store 1 (VAR "__f4") (VAR "_env")
+                                                       |                                           |                                        |                                         |
+                                          Store 0 (VAR "__r0") (INT 0)                      _env = Malloc 5                          __f6 = Malloc 2              App (INT 3) [VAR "__f4",INT 13,VAR "__r2"]
+                                                       |                                           |                                        |
+                                       Store 1 (VAR "__r0") (VAR "_env")             Store 0 (VAR "_env") (VAR "x")            Store 0 (VAR "__f6") (INT 2)
+                                                       |                                           |                                        |
+                                           __x3 = Load 0 (VAR "_x3")                Store 1 (VAR "_env") (VAR "_k5")        Store 1 (VAR "__f6") (VAR "_env")
+                                                       |                                           |                                        |
+                                 App (VAR "__x3") [VAR "_x3",INT 29,VAR "__r0"]      Store 2 (VAR "_env") (VAR "y")             __k5 = Load 0 (VAR "_k5")
+                                                                                                   |                                        |
+                                                                                    Store 3 (VAR "_env") (VAR "_k7")     App (VAR "__k5") [VAR "_k5",VAR "__f6"]
+                                                                                                   |
+                                                                                    Store 4 (VAR "_env") (VAR "_x8")
+                                                                                                   |
+                                                                                       __k7 = Load 0 (VAR "_k7")
+                                                                                                   |
+                                                                                 App (VAR "__k7") [VAR "_k7",VAR "_x8"]
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\section{\label{section:v2printsimple}LamToWat Version 2 Transformation of: ((\textbackslash x -> x + 1) 41)}
+\begin{landscape}
+\begin{lstlisting}
+                              L (Fix (("_r0",["_x1"]) ::: Nil))
+                                              |
+     -----------------------------------------------
+    /                                               \
+    ks                            L (Fix (("_f2",["x","_k3"]) ::: Nil))
+    |                                               |
+VAR "_x1"                    -----------------------------------------
+                            /                                         \
+                            ks                  R (L (App (LABEL "_f2") [INT 41,LABEL "_r0"]))
+                            |
+           _x4 = R (L (Add (VAR "x") (INT 1)))
+                            |
+           R (L (App (VAR "_k3") [VAR "_x4"]))
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{9}{10}\selectfont\ttfamily]
+                                                   R (L (Fix (("_r0",["_closure","_x1"]) ::: Nil)))
+                                                                          |
+                  ---------------------------------------------------------------------------
+                 /                                                                           \
+                 ks                                                 R (L (Fix (("_f2",["_closure","x","_k3"]) ::: Nil)))
+                 |                                                                           |
+_env = L (Select 1 (VAR "_closure"))                           --------------------------------------------------------
+                 |                                            /                                                        \
+             VAR "_x1"                                        ks                                              _env = L (Record [])
+                                                              |                                                        |
+                                             _env = L (Select 1 (VAR "_closure"))                  __r0 = L (Record [LABEL "_r0",VAR "_env"])
+                                                              |                                                        |
+                                           _x4 = R (R (L (Add (VAR "x") (INT 1))))                 __f2 = L (Record [LABEL "_f2",VAR "_env"])
+                                                              |                                                        |
+                                       _env = L (Record [VAR "x",VAR "_k3",VAR "_x4"])    R (R (L (App (LABEL "_f2") [VAR "__f2",INT 41,VAR "__r0"])))
+                                                              |
+                                               __k3 = L (Select 0 (VAR "_k3"))
+                                                              |
+                                      R (R (L (App (VAR "__k3") [VAR "_k3",VAR "_x4"])))
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{9}{10}\selectfont\ttfamily]
+                                                  R (L (Fix (("_r0",["_closure","_x1"]) ::: Nil)))
+                                                                         |
+                 --------------------------------------------------------------------------
+                /                                                                          \
+                ks                                                R (L (Fix (("_f2",["_closure","x","_k3"]) ::: Nil)))
+                |                                                                          |
+_env = L (Load 1 (VAR "_closure"))                           --------------------------------------------------------
+                |                                           /                                                        \
+            VAR "_x1"                                       ks                                              _env = L (Malloc 0)
+                                                            |                                                        |
+                                            _env = L (Load 1 (VAR "_closure"))                              __r0 = L (Malloc 2)
+                                                            |                                                        |
+                                         _x4 = R (R (L (Add (VAR "x") (INT 1))))                   L (Store 0 (VAR "__r0") (LABEL "_r0"))
+                                                            |                                                        |
+                                                   _env = L (Malloc 3)                             L (Store 1 (VAR "__r0") (VAR "_env"))
+                                                            |                                                        |
+                                            L (Store 0 (VAR "_env") (VAR "x"))                              __f2 = L (Malloc 2)
+                                                            |                                                        |
+                                           L (Store 1 (VAR "_env") (VAR "_k3"))                    L (Store 0 (VAR "__f2") (LABEL "_f2"))
+                                                            |                                                        |
+                                           L (Store 2 (VAR "_env") (VAR "_x4"))                    L (Store 1 (VAR "__f2") (VAR "_env"))
+                                                            |                                                        |
+                                              __k3 = L (Load 0 (VAR "_k3"))             R (R (L (App (LABEL "_f2") [VAR "__f2",INT 41,VAR "__r0"])))
+                                                            |
+                                    R (R (L (App (VAR "__k3") [VAR "_k3",VAR "_x4"])))
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{9}{10}\selectfont\ttfamily]
+                                                                    Fix
+                                                                     |
+                                         ----------------------------------------------------------------------
+                                        /                                                                      \
+                                        fs                                                            _env = L (Malloc 0)
+                                        |                                                                      |
+                 -----------------------------------------                                            __r0 = L (Malloc 2)
+                /                                         \                                                    |
+     "_r0" ["_closure","_x1"]                "_f2" ["_closure","x","_k3"]                    L (Store 0 (VAR "__r0") (LABEL "_r0"))
+                |                                         |                                                    |
+_env = L (Load 1 (VAR "_closure"))        _env = L (Load 1 (VAR "_closure"))                 L (Store 1 (VAR "__r0") (VAR "_env"))
+                |                                         |                                                    |
+            VAR "_x1"                    _x4 = R (L (Add (VAR "x") (INT 1)))                          __f2 = L (Malloc 2)
+                                                          |                                                    |
+                                                 _env = L (Malloc 3)                         L (Store 0 (VAR "__f2") (LABEL "_f2"))
+                                                          |                                                    |
+                                          L (Store 0 (VAR "_env") (VAR "x"))                 L (Store 1 (VAR "__f2") (VAR "_env"))
+                                                          |                                                    |
+                                         L (Store 1 (VAR "_env") (VAR "_k3"))       R (L (App (LABEL "_f2") [VAR "__f2",INT 41,VAR "__r0"]))
+                                                          |
+                                         L (Store 2 (VAR "_env") (VAR "_x4"))
+                                                          |
+                                            __k3 = L (Load 0 (VAR "_k3"))
+                                                          |
+                                    R (L (App (VAR "__k3") [VAR "_k3",VAR "_x4"]))
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}
+                                                        Fix
+                                                         |
+                                    ---------------------------------------------------------
+                                   /                                                         \
+                                   fs                                                 _env = Malloc 0
+                                   |                                                         |
+                -----------------------------------                                   __r0 = Malloc 2
+               /                                   \                                         |
+    "_r0" ["_closure","_x1"]          "_f2" ["_closure","x","_k3"]              Store 0 (VAR "__r0") (INT 0)
+               |                                   |                                         |
+_env = Load 1 (VAR "_closure")      _env = Load 1 (VAR "_closure")           Store 1 (VAR "__r0") (VAR "_env")
+               |                                   |                                         |
+           VAR "_x1"                  _x4 = Add (VAR "x") (INT 1)                     __f2 = Malloc 2
+                                                   |                                         |
+                                            _env = Malloc 3                     Store 0 (VAR "__f2") (INT 1)
+                                                   |                                         |
+                                     Store 0 (VAR "_env") (VAR "x")          Store 1 (VAR "__f2") (VAR "_env")
+                                                   |                                         |
+                                    Store 1 (VAR "_env") (VAR "_k3")     App (INT 1) [VAR "__f2",INT 41,VAR "__r0"]
+                                                   |
+                                    Store 2 (VAR "_env") (VAR "_x4")
+                                                   |
+                                       __k3 = Load 0 (VAR "_k3")
+                                                   |
+                                 App (VAR "__k3") [VAR "_k3",VAR "_x4"]
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\section{\label{section:v2printnest}LamToWat Version 2 Transformation of: ((\textbackslash x y -> x + y) 13 29)}
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{6.5}{7.5}\selectfont\ttfamily]
+                                                                          L (Fix (("_r0",["_x1"]) ::: Nil))
+                                                                                          |
+     ------------------------------------------------------------------------------------------
+    /                                                                                          \
+    ks                                                                         L (Fix (("_r2",["_x3"]) ::: Nil))
+    |                                                                                          |
+VAR "_x1"                        -------------------------------------------------------------------------------------
+                                /                                                                                     \
+                                ks                                                                  L (Fix (("_f4",["x","_k5"]) ::: Nil))
+                                |                                                                                     |
+           R (L (App (VAR "_x3") [INT 29,LABEL "_r0"]))                                        --------------------------------------------------------------
+                                                                                              /                                                              \
+                                                                                              ks                                       R (L (App (LABEL "_f4") [INT 13,LABEL "_r2"]))
+                                                                                              |
+                                                                            L (Fix (("_f6",["y","_k7"]) ::: Nil))
+                                                                                              |
+                                                                            --------------------------------------
+                                                                           /                                      \
+                                                                           ks                   R (L (App (VAR "_k5") [LABEL "_f6"]))
+                                                                           |
+                                                         _x8 = R (L (Add (VAR "x") (VAR "y")))
+                                                                           |
+                                                          R (L (App (VAR "_k7") [VAR "_x8"]))
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{4.5}{5.5}\selectfont\ttfamily]
+                                                                                                                   R (L (Fix (("_r0",["_closure","_x1"]) ::: Nil)))
+                                                                                                                                          |
+                  -------------------------------------------------------------------------------------------------------------------------------------------
+                 /                                                                                                                                           \
+                 ks                                                                                                                   R (L (Fix (("_r2",["_closure","_x3"]) ::: Nil)))
+                 |                                                                                                                                           |
+_env = L (Select 1 (VAR "_closure"))                               ------------------------------------------------------------------------------------------------------------------------
+                 |                                                /                                                                                                                        \
+             VAR "_x1"                                            ks                                                                                              R (L (Fix (("_f4",["_closure","x","_k5"]) ::: Nil)))
+                                                                  |                                                                                                                        |
+                                                 _env = L (Select 1 (VAR "_closure"))                                                                        ------------------------------------------------------------------------------------------
+                                                                  |                                                                                         /                                                                                          \
+                                                    _env = L (Record [VAR "_x3"])                                                                           ks                                                                                _env = L (Record [])
+                                                                  |                                                                                         |                                                                                          |
+                                              __r0 = L (Record [LABEL "_r0",VAR "_env"])                                                   _env = L (Select 1 (VAR "_closure"))                                                    __r2 = L (Record [LABEL "_r2",VAR "_env"])
+                                                                  |                                                                                         |                                                                                          |
+                                                   __x3 = L (Select 0 (VAR "_x3"))                                                 R (L (Fix (("_f6",["_closure","y","_k7"]) ::: Nil)))                                            __f4 = L (Record [LABEL "_f4",VAR "_env"])
+                                                                  |                                                                                         |                                                                                          |
+                                      R (R (L (App (VAR "__x3") [VAR "_x3",INT 29,VAR "__r0"])))                                   -----------------------------------------------------------                            R (R (L (App (LABEL "_f4") [VAR "__f4",INT 13,VAR "__r2"])))
+                                                                                                                                  /                                                           \
+                                                                                                                                  ks                                        _env = L (Record [VAR "x",VAR "_k5"])
+                                                                                                                                  |                                                           |
+                                                                                                                 _env = L (Select 1 (VAR "_closure"))                     __f6 = L (Record [LABEL "_f6",VAR "_env"])
+                                                                                                                                  |                                                           |
+                                                                                                                    x = L (Select 0 (VAR "_env"))                              __k5 = L (Select 0 (VAR "_k5"))
+                                                                                                                                  |                                                           |
+                                                                                                                   _k5 = L (Select 1 (VAR "_env"))                   R (R (L (App (VAR "__k5") [VAR "_k5",VAR "__f6"])))
+                                                                                                                                  |
+                                                                                                              _x8 = R (R (L (Add (VAR "x") (VAR "y"))))
+                                                                                                                                  |
+                                                                                                  _env = L (Record [VAR "x",VAR "_k5",VAR "y",VAR "_k7",VAR "_x8"])
+                                                                                                                                  |
+                                                                                                                   __k7 = L (Select 0 (VAR "_k7"))
+                                                                                                                                  |
+                                                                                                          R (R (L (App (VAR "__k7") [VAR "_k7",VAR "_x8"])))
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{5.5}{6.5}\selectfont\ttfamily]
+                                                                                                           R (L (Fix (("_r0",["_closure","_x1"]) ::: Nil)))
+                                                                                                                                  |
+                 -----------------------------------------------------------------------------------------------------------------------------------
+                /                                                                                                                                   \
+                ks                                                                                                           R (L (Fix (("_r2",["_closure","_x3"]) ::: Nil)))
+                |                                                                                                                                   |
+_env = L (Load 1 (VAR "_closure"))                               -----------------------------------------------------------------------------------------------------------------
+                |                                               /                                                                                                                 \
+            VAR "_x1"                                           ks                                                                                       R (L (Fix (("_f4",["_closure","x","_k5"]) ::: Nil)))
+                                                                |                                                                                                                 |
+                                                _env = L (Load 1 (VAR "_closure"))                                                                  ----------------------------------------------------------------------------------
+                                                                |                                                                                  /                                                                                  \
+                                                       _env = L (Malloc 1)                                                                         ks                                                                        _env = L (Malloc 0)
+                                                                |                                                                                  |                                                                                  |
+                                               L (Store 0 (VAR "_env") (VAR "_x3"))                                                _env = L (Load 1 (VAR "_closure"))                                                        __r2 = L (Malloc 2)
+                                                                |                                                                                  |                                                                                  |
+                                                       __r0 = L (Malloc 2)                                                R (L (Fix (("_f6",["_closure","y","_k7"]) ::: Nil)))                                      L (Store 0 (VAR "__r2") (LABEL "_r2"))
+                                                                |                                                                                  |                                                                                  |
+                                              L (Store 0 (VAR "__r0") (LABEL "_r0"))                                     ----------------------------------------------------                                       L (Store 1 (VAR "__r2") (VAR "_env"))
+                                                                |                                                       /                                                    \                                                        |
+                                              L (Store 1 (VAR "__r0") (VAR "_env"))                                     ks                                          _env = L (Malloc 2)                                      __f4 = L (Malloc 2)
+                                                                |                                                       |                                                    |                                                        |
+                                                  __x3 = L (Load 0 (VAR "_x3"))                         _env = L (Load 1 (VAR "_closure"))                   L (Store 0 (VAR "_env") (VAR "x"))                     L (Store 0 (VAR "__f4") (LABEL "_f4"))
+                                                                |                                                       |                                                    |                                                        |
+                                    R (R (L (App (VAR "__x3") [VAR "_x3",INT 29,VAR "__r0"])))             x = L (Load 0 (VAR "_env"))                      L (Store 1 (VAR "_env") (VAR "_k5"))                    L (Store 1 (VAR "__f4") (VAR "_env"))
+                                                                                                                        |                                                    |                                                        |
+                                                                                                          _k5 = L (Load 1 (VAR "_env"))                             __f6 = L (Malloc 2)                  R (R (L (App (LABEL "_f4") [VAR "__f4",INT 13,VAR "__r2"])))
+                                                                                                                        |                                                    |
+                                                                                                    _x8 = R (R (L (Add (VAR "x") (VAR "y"))))              L (Store 0 (VAR "__f6") (LABEL "_f6"))
+                                                                                                                        |                                                    |
+                                                                                                               _env = L (Malloc 5)                         L (Store 1 (VAR "__f6") (VAR "_env"))
+                                                                                                                        |                                                    |
+                                                                                                        L (Store 0 (VAR "_env") (VAR "x"))                     __k5 = L (Load 0 (VAR "_k5"))
+                                                                                                                        |                                                    |
+                                                                                                       L (Store 1 (VAR "_env") (VAR "_k5"))         R (R (L (App (VAR "__k5") [VAR "_k5",VAR "__f6"])))
+                                                                                                                        |
+                                                                                                        L (Store 2 (VAR "_env") (VAR "y"))
+                                                                                                                        |
+                                                                                                       L (Store 3 (VAR "_env") (VAR "_k7"))
+                                                                                                                        |
+                                                                                                       L (Store 4 (VAR "_env") (VAR "_x8"))
+                                                                                                                        |
+                                                                                                          __k7 = L (Load 0 (VAR "_k7"))
+                                                                                                                        |
+                                                                                                R (R (L (App (VAR "__k7") [VAR "_k7",VAR "_x8"])))
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{6}{7}\selectfont\ttfamily]
+                                                                                                                         Fix
+                                                                                                                          |
+                                                                                              --------------------------------------------------------------------------------------------------------------------------
+                                                                                             /                                                                                                                          \
+                                                                                             fs                                                                                                                _env = L (Malloc 0)
+                                                                                             |                                                                                                                          |
+                 --------------------------------------------------------------------------------------------------------------------------------------------------                                            __r2 = L (Malloc 2)
+                /                                             |                                                    |                                               \                                                    |
+     "_r0" ["_closure","_x1"]                      "_r2" ["_closure","_x3"]                           "_f4" ["_closure","x","_k5"]                    "_f6" ["_closure","y","_k7"]                    L (Store 0 (VAR "__r2") (LABEL "_r2"))
+                |                                             |                                                    |                                               |                                                    |
+_env = L (Load 1 (VAR "_closure"))            _env = L (Load 1 (VAR "_closure"))                   _env = L (Load 1 (VAR "_closure"))              _env = L (Load 1 (VAR "_closure"))                 L (Store 1 (VAR "__r2") (VAR "_env"))
+                |                                             |                                                    |                                               |                                                    |
+            VAR "_x1"                                _env = L (Malloc 1)                                  _env = L (Malloc 2)                         x = L (Load 0 (VAR "_env"))                              __f4 = L (Malloc 2)
+                                                              |                                                    |                                               |                                                    |
+                                             L (Store 0 (VAR "_env") (VAR "_x3"))                  L (Store 0 (VAR "_env") (VAR "x"))                _k5 = L (Load 1 (VAR "_env"))                    L (Store 0 (VAR "__f4") (LABEL "_f4"))
+                                                              |                                                    |                                               |                                                    |
+                                                     __r0 = L (Malloc 2)                          L (Store 1 (VAR "_env") (VAR "_k5"))           _x8 = R (L (Add (VAR "x") (VAR "y")))                L (Store 1 (VAR "__f4") (VAR "_env"))
+                                                              |                                                    |                                               |                                                    |
+                                            L (Store 0 (VAR "__r0") (LABEL "_r0"))                        __f6 = L (Malloc 2)                             _env = L (Malloc 5)                R (L (App (LABEL "_f4") [VAR "__f4",INT 13,VAR "__r2"]))
+                                                              |                                                    |                                               |
+                                            L (Store 1 (VAR "__r0") (VAR "_env"))                L (Store 0 (VAR "__f6") (LABEL "_f6"))            L (Store 0 (VAR "_env") (VAR "x"))
+                                                              |                                                    |                                               |
+                                                __x3 = L (Load 0 (VAR "_x3"))                    L (Store 1 (VAR "__f6") (VAR "_env"))            L (Store 1 (VAR "_env") (VAR "_k5"))
+                                                              |                                                    |                                               |
+                                    R (L (App (VAR "__x3") [VAR "_x3",INT 29,VAR "__r0"]))           __k5 = L (Load 0 (VAR "_k5"))                 L (Store 2 (VAR "_env") (VAR "y"))
+                                                                                                                   |                                               |
+                                                                                            R (L (App (VAR "__k5") [VAR "_k5",VAR "__f6"]))       L (Store 3 (VAR "_env") (VAR "_k7"))
+                                                                                                                                                                   |
+                                                                                                                                                  L (Store 4 (VAR "_env") (VAR "_x8"))
+                                                                                                                                                                   |
+                                                                                                                                                     __k7 = L (Load 0 (VAR "_k7"))
+                                                                                                                                                                   |
+                                                                                                                                             R (L (App (VAR "__k7") [VAR "_k7",VAR "_x8"]))
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{lstlisting}[basicstyle=\fontsize{6.5}{7.5}\selectfont\ttfamily]
+                                                                                                    Fix
+                                                                                                     |
+                                                                                ------------------------------------------------------------------------------------------------------
+                                                                               /                                                                                                      \
+                                                                               fs                                                                                              _env = Malloc 0
+                                                                               |                                                                                                      |
+                ----------------------------------------------------------------------------------------------------------------------------                                   __r2 = Malloc 2
+               /                                       |                                            |                                       \                                         |
+    "_r0" ["_closure","_x1"]                "_r2" ["_closure","_x3"]                   "_f4" ["_closure","x","_k5"]            "_f6" ["_closure","y","_k7"]              Store 0 (VAR "__r2") (INT 1)
+               |                                       |                                            |                                       |                                         |
+_env = Load 1 (VAR "_closure")          _env = Load 1 (VAR "_closure")               _env = Load 1 (VAR "_closure")          _env = Load 1 (VAR "_closure")           Store 1 (VAR "__r2") (VAR "_env")
+               |                                       |                                            |                                       |                                         |
+           VAR "_x1"                            _env = Malloc 1                              _env = Malloc 2                     x = Load 0 (VAR "_env")                       __f4 = Malloc 2
+                                                       |                                            |                                       |                                         |
+                                        Store 0 (VAR "_env") (VAR "_x3")              Store 0 (VAR "_env") (VAR "x")            _k5 = Load 1 (VAR "_env")                Store 0 (VAR "__f4") (INT 2)
+                                                       |                                            |                                       |                                         |
+                                                __r0 = Malloc 2                      Store 1 (VAR "_env") (VAR "_k5")         _x8 = Add (VAR "x") (VAR "y")           Store 1 (VAR "__f4") (VAR "_env")
+                                                       |                                            |                                       |                                         |
+                                          Store 0 (VAR "__r0") (INT 0)                       __f6 = Malloc 2                         _env = Malloc 5              App (INT 2) [VAR "__f4",INT 13,VAR "__r2"]
+                                                       |                                            |                                       |
+                                       Store 1 (VAR "__r0") (VAR "_env")               Store 0 (VAR "__f6") (INT 3)           Store 0 (VAR "_env") (VAR "x")
+                                                       |                                            |                                       |
+                                           __x3 = Load 0 (VAR "_x3")                Store 1 (VAR "__f6") (VAR "_env")        Store 1 (VAR "_env") (VAR "_k5")
+                                                       |                                            |                                       |
+                                 App (VAR "__x3") [VAR "_x3",INT 29,VAR "__r0"]         __k5 = Load 0 (VAR "_k5")             Store 2 (VAR "_env") (VAR "y")
+                                                                                                    |                                       |
+                                                                                 App (VAR "__k5") [VAR "_k5",VAR "__f6"]     Store 3 (VAR "_env") (VAR "_k7")
+                                                                                                                                            |
+                                                                                                                             Store 4 (VAR "_env") (VAR "_x8")
+                                                                                                                                            |
+                                                                                                                                __k7 = Load 0 (VAR "_k7")
+                                                                                                                                            |
+                                                                                                                          App (VAR "__k7") [VAR "_k7",VAR "_x8"]
+
+\end{lstlisting}
+\end{landscape}
+\clearpage

@@ -139,8 +139,8 @@ Node (R (App (VAR "f") [INT 41])) Nil None))
 The syntactic syntax is similar to its semantic counterpart. The main difference is that semantic variables have been replaced with strings. In this case we also have the empty string \icode{""}, which represents continuations that take \icode{()} as an argument.
 
 \begin{lstlisting}[language=Haskell]
-Node (L (Fix (("f", ["x"]) ::: Nil)))
-  ((Node (R (Add (VAR "x") (INT 1))) Nil (Some ("n", Leaf (VAR "n")))) ::: Nil) (Some ("",
+Node (L (Fix (("f", ["x"]) ::: Nil))) ((
+  Node (R (Add (VAR "x") (INT 1))) Nil (Some ("n", Leaf (VAR "n")))) ::: Nil) (Some ("",
 Node (R (App (VAR "f") [INT 41])) Nil None))
 \end{lstlisting}
 
@@ -195,22 +195,6 @@ lam2tree (Add e1 e2) = do
 
 We take a look at the conversion of \icode{Lam}. We generate a fresh function variable \icode{f} and continuation variable \icode{k}. We use these variables to create a function with name \icode{f} that has as argument the original variable and a continuation named \icode{k}. The body of the function will be the converted original body and a final statement that applies the continuation to the resulting variable. Finally, we return a \icode{LABEL} with the function name.
 
-We convert our example lambda expression \icode{(\ x -> x + 1) 41} to obtain the following result. The most notable novelty is the use of a \icode{Block}. Blocks are used to bind parts of code together and replace the metacontinuation of the original version. If we take the code outside the block it would end with an application of \icode{_f1}. Since applications do not have a continuation, any code after it would be discarded. In our case the application is the last thing that happens, so it does not really matter, but when we nest more than one application in our expression it becomes a problem. Continuations will be dropped. This is not the behavior we want, so we use \icode{block}s instead. We also see that there are still \icode{fresh} commands in the tree. These will be handled when transforming to \icode{Tps} in the next transformation.
-
-\begin{lstlisting}[language=Haskell]
-Node (L Block) (\ () -> 
-  Node (L (Fresh "f")) (\ _f1 ->
-  Node (L (Fresh "k")) (\ _k2 ->
-  Node (R (L (Fix (("_f1",["x","_k2"]) ::: Nil)))) (
-    Node (R (R (Add (VAR "x") (INT 1)))) (\ _x3 ->
-    R (R (App (VAR "_k2") [VAR "_x3"]))):::Nil
-  ) (\ () ->
-  Node (L (GetK "_nxt")) (\ _x4 ->
-  R (R (App (LABEL "_f1") [INT 41,VAR "_x4"]))))))
-) (\ _x0 ->
-Leaf (VAR "_x0"))
-\end{lstlisting}
-
 \subsection{\label{subsection:semtosyn}Tree Compilation}
 The \icode{Tree} that is output by \icode{lam2tree} contains commands that represent effects. We will need to handle these commands and instantiate name binding commands with generated variables before we can closure convert. The transformation is called \icode{tree2tps} and is performed using effects for generating fresh variable names (\icode{fresh}) and accessing and updating an environment that associates \icode{Var}s with \icode{Val}s (\icode{ask},\icode{local}). The type of \icode{t2t} becomes:
 
@@ -260,31 +244,7 @@ The compilation of \icode{Add} shows the instantiation of variables in the metal
 
 The \icode{SetK} and \icode{GetK} commands update and fetch named continuations. In our case there is only a continuation that is named \icode{_nxt}. The \icode{Block} command tells us to compile the continuation \icode{k} by passing it \icode{VAR x} and wrap it in a continuation function with name \icode{r} and argument {x}. We set the continuation \icode{_nxt} to the function label \icode{LABEL r}. We extend the body of the block with a final application of the continuation function \icode{r} to the result \icode{v} and compile with the updated continuation list. Finally, we create the continuation function and give it the compiled body \icode{b'} as continuation.
 
-After tree compilation we obtain a \icode{Tps} with the commands \icode{Fix} and \icode{Base}. We have done two tranformations to obtain the same result as with \icode{Cps}. However, these transformations are significantly easier to write and the conversion from \icode{Tree} to \icode{Tps} only has to be written once if we keep the command set that \icode{Tree} has now. The printed version of \icode{Tps} now looks as follows:
-
-\begin{lstlisting}[language=Haskell]
-Node
-  (L (Fix (( "_r0" , [ "_x1" ] ) ::: Nil)))
-  (Leaf (VAR "_x1") ::: Nil)
-  (Some
-     ( ""
-     , Node
-         (L (Fix (( "_f2" , [ "x" , "_k3" ] ) ::: Nil)))
-         (Node
-            (R (L (Add (VAR "x") (INT 1))))
-            Nil
-            (Some
-               ( "_x4"
-               , Node (R (L (App (VAR "_k3") [ VAR "_x4" ]))) Nil None
-               )) :::
-            Nil)
-         (Some
-            ( ""
-            , Node
-                (R (L (App (LABEL "_f2") [ INT 41 , LABEL "_r0" ]))) Nil None
-            ))
-     ))
-\end{lstlisting}
+After tree compilation we obtain a \icode{Tps} with the commands \icode{Fix} and \icode{Base}. We have done two tranformations to obtain the same result as with \icode{Cps}. However, these transformations are significantly easier to write and the conversion from \icode{Tree} to \icode{Tps} only has to be written once if we keep the command set that \icode{Tree} has now.
 
 \subsection{\label{subsection:closconvert2}Closure Conversion}
 Now that we have eliminated the \icode{Comp} commands we can closure convert our syntactic command tree. We will follow the same approach as in the previous version of LamToWat: collect names of expression and use these to construct records. We will make the assumption that the only place where expressions are named (and thus our environment is extended) is in the join-point of a node and in functions. We do not hoist our function definitions to the top level immediately. We now have an extra transformation for this. Separating these two transformations also gives as a chance to better describe the type of the command tree before and after.
@@ -388,7 +348,7 @@ tps2wat :: WatTps -> Wat
 tps2wat (fs,e) = (map (fmap t2w) fs,t2w e)
   where ns = map (\ (f,as,b) -> f) fs
 
-        t2w (Leaf v) = Done (v2v v)
+        t2w (Leaf v) = Val (v2v v)
         t2w (Node cmd ks k) = case (cmd,ks,k) of
           ((L (T.Malloc i)),      Nil, (Some (x,k))) -> Malloc i x (t2w k)
           ((L (T.Load i v)),      Nil, (Some (x,k))) -> Load i (v2v v) x (t2w k)

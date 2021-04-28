@@ -196,43 +196,5 @@ Why did we use modular denotational semantics to write a compiler? Denotational 
 
 One of the goals of a compiler is to optimize code, thus one can see where denotational semantics comes in. Moreover, it is important that the meaning of a program is not changed during compilation. In this thesis we have tried to extend this concept of denotational semantics from interpreters to compilers. In the first version of the compiler we used the approach of monad transformers. In the second version we used algebraic effects represented by command trees.
 
-\section{Relation of CPS and Command Trees}
-Command trees are very similar to \icode{Cps} and some of the features command trees provide can be emulated by extending \icode{Cps}. The added value of command trees is better pattern matching and more flexibility in the commands it uses. However, in the LamToWat implementation we choose commands that match \icode{Cps} almost one-to-one. The IR transformations remain mostly the same. One could argue that the command trees should be compiled to a modular version of \icode{Cps} instead, allowing for reuse of the original compiler code. This could provide an improved front-end of the compiler with a \icode{Cps} based back-end. We can split \icode{Cps} into a front-end part and a back-end part. The front-end would be monadic and have effects for generating fresh variables and getting and setting continutations. It would be defined as follows.
-
-\begin{lstlisting}[language=Haskell]
-data Cps a
-  = DONE a
-  | APP Val [Val]
-  | ADD Val Val (Val -> Cps a)
-  | RECORD [Val] (Val -> Cps a)
-  | SELECT Int Val (Val -> Cps a)
-  | FIX [Fun (Cps Val)] (Cps a)
-  -- embedded effects
-  | FRESH Var (Var -> Cps a)
-  | GETK (Val -> Cps a)
-  | SETK Val (Cps a)
-  | BLOCK (Cps Val) (Val -> Cps a)
-\end{lstlisting}
-
-Our original constructors are here combined with embedded effects. These effects were represented by monad transformers in the first version in the compiler and with the two command modules \icode{Fresh} and \icode{Block} in the second version. Embedding them inside gives us all the features of a command tree without overhead of projecting and injecting commmands. The continuations of \icode{ADD,RECORD,SELECT} have been changed to be semantic and have type \icode{Val -> Cps a} instead of being syntactic and binding their names directly. We (monadic) bind expressions together by entering their continuation. For example the monadic bind of \icode{ADD} is defined as \icode{ADD v1 v2 k >>= f = ADD v1 v2 (\ x -> k x >>= f)}. We can define the same smart constructors as for the command tree. If we take \icode{ADD} as example again we get the constructor by combining it with \icode{DONE}: \icode{add v1 v2 = ADD v1 v2 DONE}.
-
-\begin{lstlisting}[language=Haskell]
-data Base a
-  = ADD' Val Val Var a
-  | APP' Val [Val]
-  | DONE' Val
-
-data Record a
-  = RECORD' [Val] Var a
-  | SELECT' Int Val Var a
-
-data Fun a
-  = FIX' [(Fun a)] a
-\end{lstlisting}
-
-The back-end of will consist of three data types, which represent the different modules of \icode{Cps}. We combine these with a different version of the open unions we discussed in subsection \ref{subsection:openunion} and the functor fixpoint \icode{Fix} from subsection \ref{subsection:freemonad}. For the back-end we do use smart constructors to inject and project our data type.
-
-The compiler steps will look like a combination of the first and second version of the compiler with an additional step that translates between the two \icode{Cps} partitions. We are now able to indicate what the steps really do, by pattern matching on one specific part and having declarative types.
-
 \section{Chapter Summary}
-In this chapter we have given an explanation of what a monad does. We have shown two monads that are the basis for command trees. We shortly discussed how monads can be used to create a modular denotational semantics. Finally, we examined the relation between CPS and command trees and that CPS can easily be transformed into a monad.
+In this chapter we have given an explanation of what a monad does. We have shown two monads that are the basis for command trees and we shortly discussed how monads can be used to create a modular denotational semantics.

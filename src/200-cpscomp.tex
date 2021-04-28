@@ -51,13 +51,14 @@ The \icode{Lam} data type represents the abstract syntax tree (AST) of the lambd
 
 \begin{lstlisting}[language=Haskell]
 data Lam
-  = Lam String Lam
+  = Lam Var Lam
   | App Lam Lam
   | Add Lam Lam
   | Val Val
 \end{lstlisting}
 
-Two programs will be used as running examples throughout this thesis to show how the compilation process works. In the \icode{Lam} language they are written as follows.
+%-- TODO: ref appendix
+Two programs will be used as running examples throughout this thesis to show how the compilation process works. Their representation in different stages of the compiler can be found in appendix \ref{apdx:a}. In the \icode{Lam} language they are written as follows.
 
 \begin{lstlisting}[language=Haskell]
 App (Lam "x" (Add (Val (VAR "x")) (Val (INT 1)))) (Val (INT 41))
@@ -86,16 +87,16 @@ We provide a parser for the \icode{Lam} language. The accepted syntax is the sam
 \subsection{\label{subsection:cpsdata}The Cps Language}
 We follow the CPS language data type definition and semantics by \citeauthor{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396} with some minor adjustments. It is used as IR because it facilitates compiler transformations relevant to functional programming languages. The data type is similar to the control flow graph of a program. Control flow is modeled with functions and function calls. Data flow is modeled with records. LamToWat uses \icode{Cps} to transform nested, higher-order functions to simple functions.
 
-\icode{Cps} functions are made up of a name, argument names, and a body. They are defined in mutually recursive \icode{FIX}ed function blocks. All expressions except \icode{APP} and \icode{DONE} have a \icode{Cps} continuation as their last argument. Since the \icode{ADD}, \icode{RECORD}, and \icode{SELECT} expressions produce a value, they name it before continuing. \icode{DONE} helps us to define the initial translation into \icode{Cps}. As this expression represents a return statement, it does not adhere to continuation-passing style. No problems are caused by it, because we will make sure that it is the final expression of our programs. This makes it a global return of the program itself, not of a function.
+\icode{Cps} functions are made up of a name, argument names, and a body. They are defined in mutually recursive \icode{Fix}ed function blocks. All expressions except \icode{App} and \icode{Val} have a \icode{Cps} continuation as their last argument. Since the \icode{Add}, \icode{Record}, and \icode{Select} expressions produce a value, they name it before continuing. \icode{Val} helps us to define the initial translation into \icode{Cps}. As this expression represents a return statement, it does not adhere to continuation-passing style. No problems are caused by it, because we will make sure that it is the final expression of our programs. This makes it a global return of the program itself, not of a function.
 
 \begin{lstlisting}[language=Haskell]
 data Cps
-  = APP Val [Val]
-  | DONE Val
-  | RECORD [Val] Var Cps
-  | SELECT Int Val Var Cps
-  | ADD Val Val Var Cps
-  | FIX [Fun Cps] Cps
+  = App Val [Val]
+  | Val Val
+  | Record [Val] Var Cps
+  | Select Int Val Var Cps
+  | Add Val Val Var Cps
+  | Fix [Fun Cps] Cps
 \end{lstlisting}
 
 The \icode{Cps} data type guarantees that compiler transformations can be easily implemented by enforcing the following properties:
@@ -109,19 +110,19 @@ The \icode{Cps} data type guarantees that compiler transformations can be easily
 CPS also requires all user functions to have an extra continuation argument. This requirement is not enforced by the data type, but needs to be fulfilled in order for it to be proper CPS. To illustrate how the \icode{Cps} data type is used we will translate the first lambda calculus example into \icode{Cps}:
 
 \begin{lstlisting}[language=Haskell]
-FIX [("f", ["x"],
-  ADD (VAR "x") (INT 1) "r" (DONE (VAR "r")))]
-(APP (VAR "f") [INT 41])
+Fix [("f", ["x"],
+  Add (VAR "x") (INT 1) "r" (Val (VAR "r")))]
+(App (VAR "f") [INT 41])
 \end{lstlisting}
 
-We define a function in a \icode{FIX} block with name \icode{f} and argument \icode{x}. The body of this function adds \icode{x} and 1, names the result \icode{r}, and returns this result. Finally, we apply \icode{f} to 41.
+We define a function in a \icode{Fix} block with name \icode{f} and argument \icode{x}. The body of this function adds \icode{x} and 1, names the result \icode{r}, and returns this result. Finally, we apply \icode{f} to 41.
 
 \subsection{\label{subsection:webdata}The Wat Language}
 The \icode{Wat} language is a hierarchical, high-level assembly language and a simplification of WebAssembly \autocite{webassemblyhomepage}. As the final language in the compilation process it gives some guarantees about the well-formedness of the output of the compiler. The fundamental unit of code is a \icode{Fix} made up of \icode{Exp}.
 
 We have chosen \icode{Wat} as the output language of LamToWat, because it is a relatively high-level language without first-class functions. It can be easily translated to WebAssembly, but still has enough abstraction to be able to target other languages. The absence of first-class functions requires LamToWat to actually compile the \icode{Lam} language, which does have this feature. By keeping the output of LamToWat as a Haskell data type, we can compare the semantics of the \icode{Lam}, \icode{Cps}, and \icode{Wat} data types more easily.
 
-We see that \icode{Wat} is quite similar to \icode{Cps}, this makes it easy to translate from \icode{Cps} to \icode{Wat} after closure conversion and hosting. The \icode{RECORD} and \icode{SELECT} constructors are replaced with \icode{Malloc}, \icode{Store}, and \icode{Load}. The \icode{LABEL} constructor from \icode{Val} is not used, because functions are now represented by integers serving as an index into the module's function list. \icode{FIX} is replaced with a top-level \icode{Fix}, ensuring that there are no nested functions anymore.
+We see that \icode{Wat} is quite similar to \icode{Cps}, this makes it easy to translate from \icode{Cps} to \icode{Wat} after closure conversion and hosting. The \icode{Record} and \icode{Select} constructors are replaced with \icode{Malloc}, \icode{Store}, and \icode{Load}. The \icode{LABEL} constructor from \icode{Val} is not used, because functions are now represented by integers serving as an index into the module's function list. \icode{Fix} is replaced with a top-level \icode{Fix}, ensuring that there are no nested functions anymore.
 
 \begin{lstlisting}[language=Haskell]
 type Wat = Fix Exp
@@ -133,14 +134,14 @@ data Exp
   | Load Offset Val Var Exp
   | Add Val Val Var Exp
   | App Val [Val]
-  | Done Val
+  | Val Val
 \end{lstlisting}
 
 The translation of our simple example program \icode{(\ x -> x + 1) 41} into the \icode{Wat} language is shown below. The only real difference with \icode{Cps} is the use of the an \icode{INT} instead of a \icode{LABEL} to indicate a function pointer.
 
 \begin{lstlisting}[language=Haskell]
 ([("f",["x"],
-  Add (VAR "x") (INT 1) "r" (Done (VAR "r")))],
+  Add (VAR "x") (INT 1) "r" (Val (VAR "r")))],
 (App (INT 0) [INT 41]))
 \end{lstlisting}
 
@@ -178,7 +179,7 @@ CPS conversion will transform the \icode{Lam} data type into the \icode{Cps} dat
 l2c :: Lam -> (Val -> State Int Cps) -> State Int Cps
 \end{lstlisting}
 
-\icode{l2c} is split up into cases for each constructor of \icode{Lam}. Converting \icode{Val} is trivial: apply the metacontinuation \icode{c} to it. To convert the anonymous function \icode{Lam} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the metacontinuation \icode{c}. We convert the body of the function \icode{e}, giving it a metacontinuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{FIX} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
+\icode{l2c} is split up into cases for each constructor of \icode{Lam}. Converting \icode{Val} is trivial: apply the metacontinuation \icode{c} to it. To convert the anonymous function \icode{Lam} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the metacontinuation \icode{c}. We convert the body of the function \icode{e}, giving it a metacontinuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{Fix} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
 
 \begin{lstlisting}[language=Haskell]
 l2c (Val v) c = c v
@@ -186,21 +187,21 @@ l2c (Lam x e) c = do
   f <- fresh "f"
   k <- fresh "k"
   c' <- c (LABEL f)
-  cf <- l2c e $ \ z -> return $ APP (VAR k) [z]
-  return $ FIX [(f,[x,k],cf)] c'
+  cf <- l2c e $ \ z -> return $ App (VAR k) [z]
+  return $ Fix [(f,[x,k],cf)] c'
 l2c (App e1 e2) c = do
   r <- fresh "r"
   x <- fresh "x"
   c' <- c (VAR x)
-  cf <- l2c e1 $ \ v1 -> l2c e2 $ \ v2 -> return $ APP v1 [v2, LABEL r]
-  return $ FIX [(r,[x],c')] cf
+  cf <- l2c e1 $ \ v1 -> l2c e2 $ \ v2 -> return $ App v1 [v2, LABEL r]
+  return $ Fix [(r,[x],c')] cf
 l2c (Add e1 e2) c = do
   x <- fresh "x"
   c' <- c (VAR x)
-  l2c e1 $ \ v1 -> l2c e2 $ \ v2 -> return $ ADD v1 v2 x c'
+  l2c e1 $ \ v1 -> l2c e2 $ \ v2 -> return $ Add v1 v2 x c'
 \end{lstlisting}
 
-How the \icode{l2c} function works is not obvious. We have to generate variable names, pass these to the continuation and sometimes wrap the resulting values in a \icode{FIX}. This is quite complex, control flow should be easier to describe. For binary operators like \icode{App} and \icode{Add} we want to evaluate the left argument first (arbitrarily chosen order), the right argument second and finally add the two resulting values. We would like to write something like the following instead of generating a variable name and exposing the metacontinuation.
+How the \icode{l2c} function works is not obvious. We have to generate variable names, pass these to the continuation and sometimes wrap the resulting values in a \icode{Fix}. This is quite complex, control flow should be easier to describe. For binary operators like \icode{App} and \icode{Add} we want to evaluate the left argument first (arbitrarily chosen order), the right argument second and finally add the two resulting values. We would like to write something like the following instead of generating a variable name and exposing the metacontinuation.
 
 \begin{lstlisting}[language=Haskell]
 l2c' (Add e1 e2) = do
@@ -211,22 +212,6 @@ l2c' (Add e1 e2) = do
 
 The case for \icode{App} is especially complicated as we have to create a return point function to serve as continuation argument to the final application. Keeping track of continuations becomes even more non-trivial when we have multiple of them. For example when we want to have exception handlers in our source language.
 
-We give an example of CPS converting our simple example with \icode{lam2cps} to see how it works. Freshly generated variables are prefixed with a \icode{_}.
-
-\begin{lstlisting}[language=Haskell]
-FIX
-  [ ( "_r0" , [ "_x1" ] , DONE (VAR "_x1") ) ]
-  (FIX
-     [ ( "_f2"
-       , [ "x" , "_k3" ]
-       , ADD (VAR "x") (INT 1) "_x4" (APP (VAR "_k3") [ VAR "_x4" ])
-       )
-     ]
-     (APP (LABEL "_f2") [ INT 41 , LABEL "_r0" ]))
-\end{lstlisting}
-
-We see two functions \icode{_f2} and \icode{_r0} have been created. The first represents our original function with an additional continuation argument \icode{_k3}. The body of the function adds the number one to \icode{x} and passes the result to the continuation. The \icode{_r0} function represents a return point. In this case the return point of the entire program as it uses the \icode{DONE} constructor in its body. Finally, we see the call to \icode{_f2} where we pass the original argument and the \icode{_r0} function as the continuation.
-
 \subsection{\label{section:closconvert}Closure Conversion}
 Closure conversion transforms the \icode{Cps} data type into the \icode{Cps} data type where functions do not contain free variables. The free variables of a function are passed to the function via an extra argument. We will package a function with its free variables, this package is called a 'closure'.
 
@@ -236,14 +221,14 @@ There are many approaches to generating closures. We take an approach optimized 
 c2c :: Cps -> WriterT [Fun Cps] (Reader [Var]) Cps
 \end{lstlisting}
 
-The cases for \icode{FIX} and \icode{APP} are at the heart of the transformation. For the other constructors we simply update the environment with their assigned names.
+The cases for \icode{Fix} and \icode{App} are at the heart of the transformation. For the other constructors we simply update the environment with their assigned names.
 
-When we encounter a \icode{FIX} we ask what variables are in scope. For each function we add an extra first argument \icode{_closure}: the closure record. We prefix the function body with selecting and naming all variables in scope, that do not have the same name as any of the function's arguments. We open the closure by selecting the environment from the closure record and naming it \icode{_env}.
+When we encounter a \icode{Fix} we ask what variables are in scope. For each function we add an extra first argument \icode{_closure}: the closure record. We prefix the function body with selecting and naming all variables in scope, that do not have the same name as any of the function's arguments. We open the closure by selecting the environment from the closure record and naming it \icode{_env}.
 
-When we encounter an \icode{APP} we create a record with all variables in scope and call it \icode{_env}. We pack it with all function pointers to create closures and rename them by prefixing an underscore. There are now two cases for application: closures and function pointers. To apply a function pointer we create a closure and add it as the first argument. To apply a closure we select the closure's first element and apply that to the closure and the closure's original arguments.
+When we encounter an \icode{App} we create a record with all variables in scope and call it \icode{_env}. We pack it with all function pointers to create closures and rename them by prefixing an underscore. There are now two cases for application: closures and function pointers. To apply a function pointer we create a closure and add it as the first argument. To apply a closure we select the closure's first element and apply that to the closure and the closure's original arguments.
 
 \begin{lstlisting}[language=Haskell]
-c2c (FIX fs e) = do
+c2c (Fix fs e) = do
   fs' <- mapM funClos fs
   tell fs'
   c2c e
@@ -253,28 +238,28 @@ c2c (FIX fs e) = do
           return $
             ( name
             , "_closure" : args
-            , SELECT 1 (VAR "_closure") "_env" $
+            , Select 1 (VAR "_closure") "_env" $
               foldr (openClos args) body' (zip [0..] nv)
             )
 
         openClos args (i,x) =
-          if x `elem` args then id else SELECT i (VAR "_env") x
+          if x `elem` args then id else Select i (VAR "_env") x
 
-c2c (APP fun args) = do
+c2c (App fun args) = do
   nv <- ask
   return $
-    RECORD (map VAR nv) "_env" $
+    Record (map VAR nv) "_env" $
     foldr mkClos appClos args
   where appClos = case fun of
           LABEL fp -> let cl = '_' : fp in
-                        RECORD [LABEL fp,VAR "_env"] cl $
-                        APP (LABEL fp) (VAR cl : args')
+                        Record [LABEL fp,VAR "_env"] cl $
+                        App (LABEL fp) (VAR cl : args')
 
           VAR cl   -> let fp = '_' : cl in
-                        SELECT 0 (VAR cl) fp $
-                        APP (VAR fp) (VAR cl : args')
+                        Select 0 (VAR cl) fp $
+                        App (VAR fp) (VAR cl : args')
 
-        mkClos (LABEL x) = RECORD [LABEL x, VAR "_env"] ('_' : x)
+        mkClos (LABEL x) = Record [LABEL x, VAR "_env"] ('_' : x)
         mkClos _ = id
 
         args' = map rename args
@@ -282,189 +267,35 @@ c2c (APP fun args) = do
         rename (LABEL x) = VAR $ '_' : x
         rename v = v
 
-c2c (RECORD vs x e) = withvar x e $ RECORD vs
-c2c (SELECT i v x e) = withvar x e $ SELECT i v
-c2c (ADD v1 v2 x e) = withvar x e $ ADD v1 v2
-c2c (DONE v) = return $ DONE v
+c2c (Record vs x e) = withvar x e $ Record vs
+c2c (Select i v x e) = withvar x e $ Select i v
+c2c (Add v1 v2 x e) = withvar x e $ Add v1 v2
+c2c (Val v) = return $ Val v
 \end{lstlisting}
 
-The main defect of \icode{cps2cps} is that it gives no indication of the fact that our \icode{Cps} expressions no longer contain \icode{FIX} expressions. When we encounter a \icode{FIX}, we use the \icode{tell} function to write all functions to a list. It is obvious from the implementation that they are no longer present, however, the type \icode{cps2cps :: Cps -> Cps} of the transformation gives no recognition of this fact. If we were to pass a \icode{Cps} expression to the next pass of the compiler that has nested \icode{FIX}es, it would cause an error.
-
-We will again look at an example to see how this function works. We closure convert \icode{(\ x y -> x + y) 13 29} using \icode{cps2cps}.
-
-\begin{lstlisting}[language=Haskell]
-FIX
-  [ ( "_r0"
-    , [ "_closure" , "_x1" ]
-    , SELECT 1 (VAR "_closure") "_env" (DONE (VAR "_x1"))
-    )
-  , ( "_r2"
-    , [ "_closure" , "_x3" ]
-    , SELECT
-        1
-        (VAR "_closure")
-        "_env"
-        (RECORD
-           [ VAR "_x3" ]
-           "_env"
-           (RECORD
-              [ LABEL "_r0" , VAR "_env" ]
-              "__r0"
-              (SELECT
-                 0
-                 (VAR "_x3")
-                 "__x3"
-                 (APP (VAR "__x3") [ VAR "_x3" , INT 29 , VAR "__r0" ]))))
-    )
-  , ( "_f6"
-    , [ "_closure" , "y" , "_k7" ]
-    , SELECT
-        1
-        (VAR "_closure")
-        "_env"
-        (SELECT
-           0
-           (VAR "_env")
-           "x"
-           (SELECT
-              1
-              (VAR "_env")
-              "_k5"
-              (ADD
-                 (VAR "x")
-                 (VAR "y")
-                 "_x8"
-                 (RECORD
-                    [ VAR "x" , VAR "_k5" , VAR "y" , VAR "_k7" , VAR "_x8" ]
-                    "_env"
-                    (SELECT
-                       0
-                       (VAR "_k7")
-                       "__k7"
-                       (APP (VAR "__k7") [ VAR "_k7" , VAR "_x8" ]))))))
-    )
-  , ( "_f4"
-    , [ "_closure" , "x" , "_k5" ]
-    , SELECT
-        1
-        (VAR "_closure")
-        "_env"
-        (RECORD
-           [ VAR "x" , VAR "_k5" ]
-           "_env"
-           (RECORD
-              [ LABEL "_f6" , VAR "_env" ]
-              "__f6"
-              (SELECT
-                 0
-                 (VAR "_k5")
-                 "__k5"
-                 (APP (VAR "__k5") [ VAR "_k5" , VAR "__f6" ]))))
-    )
-  ]
-  (RECORD
-     []
-     "_env"
-     (RECORD
-        [ LABEL "_r2" , VAR "_env" ]
-        "__r2"
-        (RECORD
-           [ LABEL "_f4" , VAR "_env" ]
-           "__f4"
-           (APP (LABEL "_f4") [ VAR "__f4" , INT 13 , VAR "__r2" ]))))
-\end{lstlisting}
-
-The first thing we notice is that functions are no longer nested; there is only one, top-level \icode{FIX}. We also see the addition of \icode{RECORD} and \icode{SELECT} expressions. We have four functions representing our original two functions and the two applications. We can see how the original function bodies are prefixed with opening closures and postfixed with creating closures before application. All functions have an extra \icode{_closure} argument. If a function was originally nested more deeply, it will open and create a closure with more elements, because there will be more variables in scope. This is the case for the function \icode{_f6}, where the addition of \icode{x} and \icode{y} happens. The first closure that is created in our program before calling \icode{_f4} is empty. This is because at the top level there are no free variables. The two closures for \icode{_f4} and \icode{_r2} named \icode{__f4} and \icode{__r2}, respectively, are a sort of dummy closure only containing a function pointer and a empty environment.
+The main defect of \icode{cps2cps} is that it gives no indication of the fact that our \icode{Cps} expressions no longer contain \icode{Fix} expressions. When we encounter a \icode{Fix}, we use the \icode{tell} function to write all functions to a list. It is obvious from the implementation that they are no longer present, however, the type \icode{cps2cps :: Cps -> Cps} of the transformation gives no recognition of this fact. If we were to pass a \icode{Cps} expression to the next pass of the compiler that has nested \icode{Fix}es, it would cause an error.
 
 \subsection{\label{section:emit}Emitting}
-Emitting transforms the \icode{Cps} data type into the \icode{Wat} data type. We create a list of function names \icode{ns} to map function names to indices. The most interesting parts of the transformation are for the \icode{RECORD} case and the \icode{LABEL} case. \icode{RECORD}s are transformed into a combination of \icode{Malloc} and \icode{Store}, because \icode{Wat} does not support such a high level abstraction, but just has a heap. \icode{LABEL}s are mapped to their index in the list of function names. If the name is not present, the function will fail with an error.
+Emitting transforms the \icode{Cps} data type into the \icode{Wat} data type. We create a list of function names \icode{ns} to map function names to indices. The most interesting parts of the transformation are for the \icode{Record} case and the \icode{LABEL} case. \icode{Record}s are transformed into a combination of \icode{Malloc} and \icode{Store}, because \icode{Wat} does not support such a high level abstraction, but just has a heap. \icode{LABEL}s are mapped to their index in the list of function names. If the name is not present, the function will fail with an error.
 
-This transformation could benefit from the reuse of constructors. We see that \icode{APP} is transformed to its \icode{Wat} counterpart \icode{App}. We could just leave these parts of the data type untouched and only show the essence of the transformation, it would benefit both the reader and the writer of this code. What the transformation does would be more explicit and less code naturally leads to a smaller number of errors.
+This transformation could benefit from the reuse of constructors. We see that \icode{App} is transformed to its \icode{Wat} counterpart \icode{App}. We could just leave these parts of the data type untouched and only show the essence of the transformation, it would benefit both the reader and the writer of this code. What the transformation does would be more explicit and less code naturally leads to a smaller number of errors.
 
 \begin{lstlisting}[language=Haskell]
 cps2wat :: Cps -> Wat
-cps2wat (FIX fs e) = (map (fmap c2w) fs,c2w e)
+cps2wat (C.Fix fs e) = (map (fmap c2w) fs,c2w e)
     where ns = map (\ (f,as,b) -> f) fs
 
-          c2w (DONE v)         = Done (v2v v)
-          c2w (APP v vs)       = App (v2v v) (map v2v vs)
-          c2w (ADD v1 v2 x e)  = Add (v2v v1) (v2v v2) x (c2w e)
-          c2w (SELECT i v x e) = Load i (v2v v) x (c2w e)
-          c2w (RECORD vs x e)  =
-            Malloc (length vs) x $
-            foldr (\ (i,v) -> Store i (VAR x) (v2v v))
+          c2w (C.Val v)          = W.Val (v2v v)
+          c2w (C.App v vs)       = W.App (v2v v) (map v2v vs)
+          c2w (C.Add v1 v2 x e)  = W.Add (v2v v1) (v2v v2) x (c2w e)
+          c2w (C.Select i v x e) = W.Load i (v2v v) x (c2w e)
+          c2w (C.Record vs x e)  =
+            W.Malloc (length vs) x $
+            foldr (\ (i,v) -> W.Store i (VAR x) (v2v v))
               (c2w e) (zip [0..] vs)
 
           v2v (LABEL x) = INT $ fromJust $ x `elemIndex` ns
           v2v v         = v
-\end{lstlisting}
-
-Let's look at the transformed program \icode{(\ x -> x + 1) 41}.
-
-\begin{lstlisting}[language=Haskell]
-( [ ( "_r0"
-    , [ "_closure" , "_x1" ]
-    , Load 1 (VAR "_closure") "_env" (Done (VAR "_x1"))
-    )
-  , ( "_f2"
-    , [ "_closure" , "x" , "_k3" ]
-    , Load
-        1
-        (VAR "_closure")
-        "_env"
-        (Add
-           (VAR "x")
-           (INT 1)
-           "_x4"
-           (Malloc
-              3
-              "_env"
-              (Store
-                 0
-                 (VAR "_env")
-                 (VAR "x")
-                 (Store
-                    1
-                    (VAR "_env")
-                    (VAR "_k3")
-                    (Store
-                       2
-                       (VAR "_env")
-                       (VAR "_x4")
-                       (Load
-                          0
-                          (VAR "_k3")
-                          "__k3"
-                          (App (VAR "__k3") [ VAR "_k3" , VAR "_x4" ])))))))
-    )
-  ]
-, Malloc
-    0
-    "_env"
-    (Malloc
-       2
-       "__r0"
-       (Store
-          0
-          (VAR "__r0")
-          (INT 0)
-          (Store
-             1
-             (VAR "__r0")
-             (VAR "_env")
-             (Malloc
-                2
-                "__f2"
-                (Store
-                   0
-                   (VAR "__f2")
-                   (INT 1)
-                   (Store
-                      1
-                      (VAR "__f2")
-                      (VAR "_env")
-                      (App (INT 1) [ VAR "__f2" , INT 41 , VAR "__r0" ])))))))
-)
 \end{lstlisting}
 
 \section{\label{section:summarycps}Chapter Summary}
@@ -476,9 +307,9 @@ We identified problems with the transformations on the data types and the data t
 \item Complex specification of control flow in \icode{lam2cps}\\\\
 \icode{lam2cps} is itself written in Continuation-Passing Style. It requires us to expose the metacontinuation. This leads to a confusing specification of control flow where the programmer needs to constantly switch between continuation and metacontinuation.
 \item No types to indicate change of \icode{Cps} after \icode{cps2cps}\\\\
-Closure conversion has type \icode{cps2cps :: Cps -> Cps}. The \icode{Cps} data type is free to contain nested \icode{FIX} expressions. We want to guarantee that functions are no longer nested. All function definitions should be contained in a single, top-level \icode{Fix}. The bodies of the \icode{Fix} should be made up of expression containing only addition, records, and application.
+Closure conversion has type \icode{cps2cps :: Cps -> Cps}. The \icode{Cps} data type is free to contain nested \icode{Fix} expressions. We want to guarantee that functions are no longer nested. All function definitions should be contained in a single, top-level \icode{Fix}. The bodies of the \icode{Fix} should be made up of expression containing only addition, records, and application.
 \item Duplicate constructors in \icode{Cps} and \icode{Wat}\\\\
-If we look at both data types we see that addition and application constructors match one-to-one. We would like to only transform \icode{RECORD} expressions into \icode{Malloc} expressions.
+If we look at both data types we see that addition and application constructors match one-to-one. We would like to only transform \icode{Record} expressions into \icode{Malloc} expressions.
 \end{itemize}
 
 In the next chapter we will try to alleviate these shortcomings of the first version of our compiler by proposing a new data type: command trees.
