@@ -2,9 +2,11 @@
 
 \chapter{\label{chap:cpscomp}Compiling with Continuations}
 
-In this chapter we will develop the first version of the LamToWat compiler that translates the \icode{Lam} language into the \icode{Wat} language. Our compiler will be written in Haskell \autocite{haskellhomepage} and as such \icode{Lam} and \icode{Wat} are implemented as Haskell data types. We follow a minimal version of the approach by \citeauthor{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396}. Consequently, a simplified version of the CPS language used by Appel will serve as IR and have its own data type \icode{Cps}. The purpose of building LamToWat is to examine and then improve its IR. The complexity of CPS conversion and difficulties with the untyped IR transformations will become apparent. If we can improve upon the already favorable features of CPS, we are creating a better IR to program in. Although we are not concerned with the peripherals of the compiler, an IR is not used in a vacuum. We want to examine the compiler passes that map to and from the IR as well as the ones that map to the IR itself. Additionally, to test the compiler we will need to read lambda calculus source files and these will need to be parsed into \icode{Lam}.
+In this chapter we will develop the first version of the LamToWat compiler that translates the \icode{Lam} language into the \icode{Wat} language. Our compiler will be written in Haskell \autocite{haskellhomepage} and as such \icode{Lam} and \icode{Wat} are implemented as Haskell data types. We follow a minimal version of the approach by \citeauthor{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396}. Consequently, a simplified version of the CPS language used by Appel will serve as IR and have its own data type \icode{Cps}. 
 
 What makes CPS favorable as an IR is that it makes control flow and data flow explicit. These features nicely represent the objective of a compiler: translating from a high-level to a low-level language by describing abstractions in finer detail. CPS uses special functions, called 'continuations', to describe more complex control flow constructs. The fact that continuations are special functions becomes essential when translating languages with first-class functions.
+
+The purpose of building LamToWat is to examine and then improve its IR. The complexity of CPS conversion and difficulties with the untyped IR transformations will become apparent. If we can improve upon the already favorable features of CPS, we are creating a better IR to program in. Although we are not concerned with the peripherals of the compiler, an IR is not used in a vacuum. We want to examine the compiler passes that map to and from the IR as well as the ones that map to the IR itself. Additionally, to test the compiler we will need to read lambda calculus source files and these will need to be parsed into \icode{Lam}.
 
 LamToWat is a multipass compiler. This means that multiple passes over the IR will be made, each transforming a part of the representation. The complete compiler comprises these IR transformations with additional passes to read in source files and emit \icode{Wat}, such that it can be compiled and interpreted by the WebAssembly Binary Toolkit (WABT) \autocite{wabt}.
 
@@ -134,7 +136,7 @@ data Exp
   | Done Val
 \end{lstlisting}
 
-Let's see how our simple example program looks in the \icode{Wat} language. The only real difference with \icode{Cps} is the use of the an \icode{INT} instead of a \icode{LABEL} to indicate a function pointer.
+The translation of our simple example program \icode{(\ x -> x + 1) 41} into the \icode{Wat} language is shown below. The only real difference with \icode{Cps} is the use of the an \icode{INT} instead of a \icode{LABEL} to indicate a function pointer.
 
 \begin{lstlisting}[language=Haskell]
 ([("f",["x"],
@@ -170,7 +172,7 @@ Transformations or compiler passes of LamToWat will be implemented as Haskell fu
 \subsection{\label{subsection:cpsconvert}CPS Conversion}
 CPS conversion will transform the \icode{Lam} data type into the \icode{Cps} data type. By converting our program to continuation-passing style we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and use a metacontinuation (a continuation in the metalangauge Haskell) to indicate the order of expressions.
 
-\citeauthor{DBLP:books/daglib/0022396} describes a CPS conversion function that takes an extra metacontinuation as argument. It also assumes some way of generating fresh variable names, which is not further specified. In haskell the signature of such a fuction would look as follows. It uses a \icode{State} for fresh variable name generation.
+\citeauthor{DBLP:books/daglib/0022396} describes a CPS conversion function that takes an extra metacontinuation as argument. It also assumes some way of generating fresh variable names, which is not further specified. In Haskell the signature of such a fuction would look as follows. It uses \icode{State} for fresh variable name generation.
 
 \begin{lstlisting}[language=Haskell]
 l2c :: Lam -> (Val -> State Int Cps) -> State Int Cps
