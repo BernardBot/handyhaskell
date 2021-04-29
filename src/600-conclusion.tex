@@ -1,7 +1,7 @@
 % !TEX root = document.tex
 \chapter{\label{chap:conclusion}Conclusion}
 
-In this thesis we have examined how CPS can be improved upon as an IR. We have proposed command trees as a solution, which helps both language implementers and compiler writers. Our new compilation scheme is validated by using it to implement LamToWat, a compiler from the lambda calculus to WebAssembly. 
+In this thesis we have examined how CPS can be improved upon as an IR: better control flow specification, modularity, and types. We have proposed command trees as a solution, which helps both language implementers and compiler writers. Our new compilation scheme is validated by using it to implement LamToWat, a compiler from the lambda calculus to WebAssembly. 
 
 We started by discussing a refence implementation of LamToWat and showed how the source code is transformed by CPS conversion, closure conversion, and emitting. We identified three shortcomings of the IR: complex specification of control flow, lack of types after hoisting, and constructor duplication.
 

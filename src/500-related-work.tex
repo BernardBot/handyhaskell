@@ -200,6 +200,3 @@ We see that both approaches allow us to define instances for our language terms 
 Why did we use modular denotational semantics to write a compiler? Denotational semantics are very useful because they lead to a method of proving equality of terms of a language. When two terms have the same denotational value, they have the same meaning and one can be replaced by the other. This gives rise to many optimizations, which are provably correct.
 
 One of the goals of a compiler is to optimize code, thus one can see where denotational semantics comes in. Moreover, it is important that the meaning of a program is not changed during compilation. In this thesis we have tried to extend this concept of denotational semantics from interpreters to compilers. In the first version of the compiler we used the approach of monad transformers. In the second version we used algebraic effects represented by command trees.
-
-\section{Chapter Summary}
-In this chapter we have given an explanation of the operational view of a monad. We have shown that the operational monad and the free monad are the basis for command trees and we shortly discussed how monads can be used to create a modular denotational semantics.

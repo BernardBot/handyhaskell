@@ -1,8 +1,6 @@
 \chapter{\label{chap:compiler}Compiler Validation and Extension}
-In this section we will discuss how we validated that our compiler worked and the performance of the transformations and command trees. We will also address some of the compiler transformations we did not implement because they were out of scope of this thesis.
+In this section we will discuss how we validated that our compiler worked and the performance of the transformations and command trees. We will also address some of the compiler transformations we did not implement because they were out of scope of this thesis. The online repository with the source code for LamToWat can be found on GitHub: \url{https://github.com/BernardBot/LamToWat}.
 
-% code URL
-% lines of code table...
 \section{Testing}
 In order to test if all transformations were performed correctly we have written interpreters for the \icode{Lam}, \icode{Cps}, \icode{Wat}, and \icode{Tps} languages/data types. This allowed us to test programs at different steps of the compilation process. We compare the interpreter's results and check that they are the same. Of course this does not guarantee equality between programs. We could obtain the expected result by a wrong calculation, or by using other effects.
 
@@ -26,6 +24,3 @@ Pattern matching is a feature that benefits many functional languages. To compil
 \item Inlining funcions\\\\
 The inlining of functions substitutes a function body for a function call. This increases performance of a program. Substitution of function bodies may be problematic if not performed correctly, because it may lead to a large increase in program size. To implement this feature in LamToWat we could create a new command that identifies function bodies as candidates for inline expansion. We would have one command for candidate functions and one for non-candidate functions. We may need an auxilary function to perform the candidate analysis.
 \end{itemize}
-
-\section{Chapter Summary}
-In this chapter we have discussed how LamToWat is tested and how the performance of the two versions of the compiler compare. We also discussed other compiler transformations that are not included in the current version of LamToWat.
