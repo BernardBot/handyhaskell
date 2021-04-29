@@ -1,5 +1,6 @@
 % !TEX root = document.tex
 
+% cps2cps -> cc
 \chapter{\label{chap:cpscomp}Compiling with Continuations}
 
 In this chapter we will develop the first version of the LamToWat compiler that translates the \icode{Lam} language into the \icode{Wat} language. Our compiler will be written in Haskell \autocite{haskellhomepage} and as such \icode{Lam} and \icode{Wat} are implemented as Haskell data types. We follow a minimal version of the approach by \citeauthor{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396}. Consequently, a simplified version of the CPS language used by Appel will serve as IR and have its own data type \icode{Cps}. 
@@ -22,7 +23,8 @@ In this version of LamToWat the data types we will be using are \icode{Lam}, \ic
 \label{fig:lam2watv1org}
 \end{figure}
 
-LamToWat is split into a front-end and a back-end. The front-end of the compiler is made up of parsing (\icode{parse}), and CPS conversion (\icode{lam2cps}). We will not discuss  parsing in detail, as it is irrelevant to the research in this thesis. We will focus on the transformation that involve the IR. We use \icode{parsec} to build a parser for our compiler. The back-end of LamToWat consist of three transformations on the IR: closure conversion, hoisting, and emitting (\icode{cps2wat}). In the first version of the compiler hoisting and closure conversion are combined in \icode{cps2cps}.
+% TODO parsec link
+LamToWat is split into a front-end and a back-end. The front-end of the compiler is made up of parsing (\icode{parse}), and CPS conversion (\icode{lam2cps}). We will not discuss  parsing in detail, as it is orthogonal to the research in this thesis. We will focus on the transformation that involve the IR. We use \icode{parsec} to build a parser for our compiler. The back-end of LamToWat consist of three transformations on the IR: closure conversion, hoisting, and emitting (\icode{cps2wat}). In the first version of the compiler hoisting and closure conversion are combined in \icode{cps2cps}.
 
 The following sections will first describe the data types \icode{Lam}, \icode{Cps}, and \icode{Wat} used in LamToWat with specific attention to \icode{Cps}. We will adhere to the organization of the compiler and discuss the relevant compiler passes over these data types in the order described in figure \ref{fig:lam2watv1org}.
 
@@ -57,7 +59,6 @@ data Lam
   | Val Val
 \end{lstlisting}
 
-%-- TODO: ref appendix
 Two programs will be used as running examples throughout this thesis to show how the compilation process works. Their representation in different stages of the compiler can be found in appendix \ref{apdx:a} for both versions of the compiler. In the \icode{Lam} language they are written as follows.
 
 \begin{lstlisting}[language=Haskell]
@@ -227,6 +228,7 @@ When we encounter a \icode{Fix} we ask what variables are in scope. For each fun
 
 When we encounter an \icode{App} we create a record with all variables in scope and call it \icode{_env}. We pack it with all function pointers to create closures and rename them by prefixing an underscore. There are now two cases for application: closures and function pointers. To apply a function pointer we create a closure and add it as the first argument. To apply a closure we select the closure's first element and apply that to the closure and the closure's original arguments.
 
+% withvar
 \begin{lstlisting}[language=Haskell]
 c2c (Fix fs e) = do
   fs' <- mapM funClos fs
@@ -298,6 +300,9 @@ cps2wat (C.Fix fs e) = (map (fmap c2w) fs,c2w e)
           v2v v         = v
 \end{lstlisting}
 
+% mention WebAssembly output -> terminal ghci
+
+% rename
 \section{\label{section:summarycps}Chapter Summary}
 In this chapter we have shown how to build a compiler that translates \icode{Lam} into \icode{Wat}. We used three data types: \icode{Lam}, \icode{Cps}, and \icode{Wat}. By applying the transformations \icode{parse}, \icode{lam2cps}, \icode{cps2cps}, and \icode{cps2wat} to a well formatted lambda calculus string, we obtain a low-level language output that can be printed as WebAssembly. By looking at two example lambda expressions that can be found in Appendix \ref{section:v1printsimple} and \ref{section:v1printnest}, we tracked the state of our program throughout the compilation process.
 
@@ -306,8 +311,11 @@ We identified problems with the transformations on the data types and the data t
 \begin{itemize}
 \item Complex specification of control flow in \icode{lam2cps}\\\\
 \icode{lam2cps} is itself written in Continuation-Passing Style. It requires us to expose the metacontinuation. This leads to a confusing specification of control flow where the programmer needs to constantly switch between continuation and metacontinuation.
+% motivate it more -> repeated data types + explosion
+% mention lines of code -> show more 
+% MEASURE
 \item No types to indicate change of \icode{Cps} after \icode{cps2cps}\\\\
-Closure conversion has type \icode{cps2cps :: Cps -> Cps}. The \icode{Cps} data type is free to contain nested \icode{Fix} expressions. We want to guarantee that functions are no longer nested. All function definitions should be contained in a single, top-level \icode{Fix}. The bodies of the \icode{Fix} should be made up of expression containing only addition, records, and application.
+Closure conversion has type \icode{cps2cps :: Cps -> Cps}. The \icode{Cps} data type is free to contain nested \icode{Fix} expressions. We want to guarantee that functions are no longer nested. All function definitions should be contained in a single, top-level \icode{Fix}. The bodies of the \icode{Fix} should be made up of expressions containing only addition, records, and application.
 \item Duplicate constructors in \icode{Cps} and \icode{Wat}\\\\
 If we look at both data types we see that addition and application constructors match one-to-one. We would like to only transform \icode{Record} expressions into \icode{Malloc} expressions.
 \end{itemize}

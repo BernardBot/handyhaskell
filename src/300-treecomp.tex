@@ -1,7 +1,7 @@
 % !TEX root = document.tex
 
 \chapter{\label{chap:treecomp}Compiling with Command Trees}
-
+% TODO: relate to 2.3 -> show how it improves (last section)
 In this chapter we propose command trees as an improvement upon the \icode{Cps} data type of the previous chapter. The new compiler uses the \icode{Tree} and \icode{Tps} data type as IR. Compiler passes on the IR will have a type that looks like \icode{pass :: Tps cmd Val -> Tps cmd' Val}. The differences between \icode{cmd} and \icode{cmd'} indicate what a pass does. A graph representation of the example lambda programs throughout the compilation process can be found in Appendix \ref{section:v2printsimple} and \ref{section:v2printnest}.
 
 \begin{figure}
@@ -25,6 +25,10 @@ If we look at the transformations in figure \ref{fig:lam2watv2org}, we notice th
 \icode{Tree} is used in the front-end of the compiler, while \icode{Tps} is used in the back-end. This chapter is structured in the same order as the previous chapter: we will first discuss the new \icode{Tree} and \icode{Tps} data types and then examine their transformations. Finally, we will suggest command tree improvements.
 
 \section{\label{section:commandtree}Command Trees}
+% TODO show algebraic effects: plotkin + pretnar/schrijvers
+% reference forward
+% latent effects
+% something machinery
 Command trees are a data type used to sequence commands. A well known data type that is also capable of sequencing is a list. Command trees improve upon lists by adding subcontinuations and by providing the ability to use the result of our command in the commands after that. Command trees can be easily sequenced using Haskell's \icode{do}-notation.
 
 The meaning of a command is something that is left to the programmer. What a command does is implemented later in a function called a handler. Command trees are used to model effects in denotational semantics. We can write handlers for effects to create an interpreter. In this chapter we try to extend this approach to writing a compiler. We discuss the role of command trees in denotational semantics in more detail in section \ref{section:denotationalsemantics}.
@@ -72,6 +76,7 @@ type Sig = Nat -> Bool -> * -> * -> * -> *
 
 A signature instance \icode{sig n b p r q} tells us the following:
 
+% TODO add letters
 \begin{itemize}
 \item The tag of the command and its enclosed parameters.
 \item The number of subcontinuations \icode{n}.
@@ -144,8 +149,9 @@ Node (L (Fix (("f", ["x"]) ::: Nil))) ((
 Node (R (App (VAR "f") [INT 41])) Nil None))
 \end{lstlisting}
 
+% TODO: move monad transformers up
 \subsubsection{\label{subsection:openunion}Open Unions}
-In order to compile \icode{Lam} into \icode{Wat} we will have to make use of all our command modules. We will combine our commands using an open union or extensible sum data type. An open union can be viewed as a list of data types. More precisely, it is a binary tree which has data types as leaf nodes. \icode{:+:} is right-associative and has two constructors \icode{L} and \icode{R}, which inject a data type into the left or right side of the tree, respectively. Note that we can nest instances of open unions to create open unions. Open unions make our command tree somewhat modular, because we can add new commands to an existing union to represent new language features.
+In order to compile \icode{Lam} into \icode{Wat} we will have to make use of all our command modules. We will combine our commands using an open union or extensible sum data type. An open union can be viewed as a list of data types. More precisely, it is a binary tree which has data types as leaf nodes. \icode{:+:} is right-associative and has two constructors \icode{L} and \icode{R}, which inject a data type into the left or right side of the tree, respectively. Note that we can nest instances of open unions to create open unions. Open unions make our command tree modular, because we can add new commands to an existing union to represent new language features.
 
 \begin{lstlisting}[language=Haskell]
 data (:+:) :: Sig -> Sig -> Sig where
@@ -357,6 +363,8 @@ tps2wat (fs,e) = (map (fmap t2w) fs,t2w e)
         v2v (LABEL x) = INT $ fromJust $ x `elemIndex` ns
         v2v v         = v
 \end{lstlisting}
+
+% illustrate run
 
 \section{\label{section:ctreebetter}Command Tree Improvements}
 In this section we will explore the design space for command trees and discusss the shortcomings of the second version of LamToWat. During the development of the LamToWat compiler a number of different command trees were examined to see if they could provide us with a replacement for \icode{Cps}. We will discuss some of the relevant features here.
