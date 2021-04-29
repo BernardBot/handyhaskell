@@ -305,10 +305,11 @@ cps2wat (C.Fix fs e) = (map (fmap c2w) fs,c2w e)
 In order to run our converted expression we need WABT and indicate where the \icode{wat2wasm} and \icode{wasm-interp} binaries are located. We can then run the command from within a interactive Haskell session with \icode{shake}. A \icode{ghci} session where we would run a converted lambda calculus expression would look as follows:
 
 \begin{lstlisting}[language=Haskell]
-λ> putStrLn $ emit $ cps2wat $ cps2cps $ lam2cps $ parse "(\\ x -> x + 1) 41"
+> putStrLn $ emit $ cps2wat $ cps2cps $ lam2cps $ parse "(\\ x -> x + 1) 41"
 (module
 ...
-λ> Wat.emitRun $ cps2wat $ cps2cps $ lam2cps $ parse "(\\ x -> x + 1) 41"
+
+> Wat.emitRun $ cps2wat $ cps2cps $ lam2cps $ parse "(\\ x -> x + 1) 41"
 _start() => i32:42
 \end{lstlisting}
 

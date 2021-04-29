@@ -366,10 +366,13 @@ tps2wat (fs,e) = (map (fmap t2w) fs,t2w e)
 A \icode{ghci} session where we would run a converted lambda calculus expression would look as follows:
 
 \begin{lstlisting}[language=Haskell]
-λ> putStrLn $ emit $ tps2wat $ hFix $ swapTps $ hRecord $ hClos $ tree2tps $ lam2tree $ parse "(\\ x -> x + 1) 41"
+> putStrLn $ emit $ tps2wat $ hFix $ swapTps $ hRecord $
+    hClos $ tree2tps $ lam2tree $ parse "(\\ x -> x + 1) 41"
 (module
 ...
-λ> Wat.emitRun $ tps2wat $ hFix $ swapTps $ hRecord $ hClos $ tree2tps $ lam2tree $ parse "(\\ x -> x + 1) 41"
+
+> Wat.emitRun $ tps2wat $ hFix $ swapTps $ hRecord $
+     hClos $ tree2tps $ lam2tree $ parse "(\\ x -> x + 1) 41"
 _start() => i32:42
 \end{lstlisting}
 
