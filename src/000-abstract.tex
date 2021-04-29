@@ -1,6 +1,6 @@
 % !TEX root = document.tex
 
-Compilers translate high-level source code into low-level machine code. To represent source code a compiler uses a language called the intermediate representation (IR). An intermediate representation for the compilation of functional languages is continuation-passing style (CPS)  \autocite{steele1978rabbit, DBLP:books/daglib/0022396}. It provides convenient abstractions for both data flow and control flow.
+Compilers translate high-level source code into low-level machine code. To represent source code a compiler uses a language called the intermediate representation (IR). An IR for the compilation of functional languages is continuation-passing style (CPS)  \autocite{steele1978rabbit, DBLP:books/daglib/0022396}. It provides convenient abstractions for both data flow and control flow.
 
 In this thesis we develop an IR based on CPS using the command tree data structure \autocite{commandtreespoulsen}. Command trees allow us to express compiler transformations typically, declaratively and modularly. The monadic nature of command trees allows us to bind commands together in a succinct manner.
 
