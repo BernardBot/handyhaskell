@@ -2,7 +2,7 @@
 
 \chapter{\label{chap:treecomp}Compiling with Command Trees}
 
-In this chapter we propose command trees as an improvement upon the \icode{Cps} data type of the previous chapter. The new compiler uses the \icode{Tree} and \icode{Tps} data type as IR. Compiler passes on the IR will have a type that looks like \icode{pass :: Tps cmd Val -> Tps cmd' Val}. The differences between \icode{cmd} and \icode{cmd'} indicate what a pass does.
+In this chapter we propose command trees as an improvement upon the \icode{Cps} data type of the previous chapter. The new compiler uses the \icode{Tree} and \icode{Tps} data type as IR. Compiler passes on the IR will have a type that looks like \icode{pass :: Tps cmd Val -> Tps cmd' Val}. The differences between \icode{cmd} and \icode{cmd'} indicate what a pass does. A graph representation of the example lambda programs throughout compilation can be found in Appendix \ref{section:v2printsimple} and \ref{section:v2printnest}.
 
 \begin{figure}
 \begin{gather*}

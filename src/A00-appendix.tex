@@ -5,6 +5,9 @@
 
 \section{\label{section:v1printsimple}LamToWat Version 1 Transformation of: ((\textbackslash x -> x + 1) 41)}
 \begin{landscape}
+\begin{gather*}
+  String \xto{parse} \boxed{Lam} \xto{lam2cps} Cps \xto{cps2cps} Cps \xto{cps2wat} Wat \xto{emit} String
+\end{gather*}
 \begin{lstlisting}
          App
           |
@@ -24,6 +27,10 @@ Graph representation of the AST of our simple lambda expression \icode{(\ x -> x
 \clearpage
 
 \begin{landscape}
+\begin{gather*}
+  String \xto{parse} Lam \xto{lam2cps} \boxed{Cps} \xto{cps2cps} Cps \xto{cps2wat} Wat \xto{emit} String
+\end{gather*}
+
 \begin{lstlisting}
                                        Fix
                                         |
@@ -47,6 +54,10 @@ In the graph above we see how our simple lambda calculus program is converted wi
 \clearpage
 
 \begin{landscape}
+\begin{gather*}
+  String \xto{parse} Lam \xto{lam2cps} Cps \xto{cps2cps} \boxed{Cps} \xto{cps2wat} Wat \xto{emit} String
+\end{gather*}
+
 \begin{lstlisting}
                                                               Fix
                                                                |
@@ -73,6 +84,10 @@ _env = Select 1 (VAR "_closure")        _env = Select 1 (VAR "_closure")       A
 \clearpage
 
 \begin{landscape}
+\begin{gather*}
+  String \xto{parse} Lam \xto{lam2cps} Cps \xto{cps2cps} Cps \xto{cps2wat} \boxed{Wat} \xto{emit} String
+\end{gather*}
+
 \begin{lstlisting}
                                                         Fix
                                                          |
@@ -107,6 +122,10 @@ _env = Load 1 (VAR "_closure")      _env = Load 1 (VAR "_closure")           Sto
 \section{\label{section:v1printnest}LamToWat Version 1 Transformation of: ((\textbackslash x y -> x + y) 13 29)}
 
 \begin{landscape}
+\begin{gather*}
+  String \xto{parse} \boxed{Lam} \xto{lam2cps} Cps \xto{cps2cps} Cps \xto{cps2wat} Wat \xto{emit} String
+\end{gather*}
+
 \begin{lstlisting}
               App
                |
@@ -132,6 +151,10 @@ Graph representation of the AST of our simple lambda expression \icode{(\ x y ->
 \clearpage
 
 \begin{landscape}
+\begin{gather*}
+  String \xto{parse} Lam \xto{lam2cps} \boxed{Cps} \xto{cps2cps} Cps \xto{cps2wat} Wat \xto{emit} String
+\end{gather*}
+
 \begin{lstlisting}[basicstyle=\fontsize{9}{10}\selectfont\ttfamily]
                                                                            Fix
                                                                             |
@@ -166,6 +189,10 @@ Graph representation of the AST of our simple lambda expression \icode{(\ x y ->
 \clearpage
 
 \begin{landscape}
+\begin{gather*}
+  String \xto{parse} Lam \xto{lam2cps} Cps \xto{cps2cps} \boxed{Cps} \xto{cps2wat} Wat \xto{emit} String
+\end{gather*}
+
 \begin{lstlisting}[basicstyle=\fontsize{6.25}{7.25}\selectfont\ttfamily]
                                                                                                                    Fix
                                                                                                                     |
@@ -197,6 +224,10 @@ If we take a look at the above graphic, the first thing we notice is that functi
 \clearpage
 
 \begin{landscape}
+\begin{gather*}
+  String \xto{parse} Lam \xto{lam2cps} Cps \xto{cps2cps} Cps \xto{cps2wat} \boxed{Wat} \xto{emit} String
+\end{gather*}
+
 \begin{lstlisting}[basicstyle=\fontsize{6}{7.5}\selectfont\ttfamily]
                                                                                                     Fix
                                                                                                      |
@@ -238,6 +269,40 @@ _env = Load 1 (VAR "_closure")          _env = Load 1 (VAR "_closure")          
 
 \section{\label{section:v2printsimple}LamToWat Version 2 Transformation of: ((\textbackslash x -> x + 1) 41)}
 \begin{landscape}
+\begin{gather*}
+  \cdots \xto{lam2tree} \boxed{Tree  (Comp + Fix + Base) Val} \xto{tree2tps} \cdots
+\end{gather*}
+\begin{lstlisting}
+                                          L Block                                           
+                                             |                                              
+                                         ----------------------------------------------     
+                                        /                                              \    
+                                        k0                                         VAR "_x0"
+                                        |                                                   
+                               _f1 = L (Fresh "f")                                          
+                                        |                                                   
+                               _k2 = L (Fresh "k")                                          
+                                        |                                                   
+                    R (L (Fix (("_f1",["x","_k2"]) ::: Nil)))                               
+                                        |                                                   
+                  ----------------------------------------                                  
+                 /                                        \                                 
+                 ks                             _x4 = L (GetK "_nxt")                       
+                 |                                        |                                 
+_x3 = R (R (Add (VAR "x") (INT 1)))  R (R (App (LABEL "_f1") [INT 41,VAR "_x4"]))           
+                 |                                                                          
+R (R (App (VAR "_k2") [VAR "_x3"]))                                                         
+
+\end{lstlisting}
+The most notable novelty in the command tree based CPS conversion is the use of the extensible sum constructors \icode{L} and \icode{R} and the use of a \icode{Block}. \icode{Block}s are used to bind parts of code together and replace the metacontinuation of the original version. If we take the code outside the block it would end with an application of \icode{_f1}. Since applications do not have a continuation, any code after it would be discarded. Since in this case the application is the last thing that happens it does not really matter, but when we more than one application in our expression it becomes a problem. Continuations will be dropped. This is not the behavior we want, so we use \icode{Block}s instead.
+\end{landscape}
+\clearpage
+
+
+\begin{landscape}
+\begin{gather*}
+  \cdots \xto{tree2tps} \boxed{Tps (Fix + Base) Val} \xto{hClos} \cdots
+\end{gather*}
 \begin{lstlisting}
                               L (Fix (("_r0",["_x1"]) ::: Nil))
                                               |
@@ -254,11 +319,14 @@ VAR "_x1"                    -----------------------------------------
            R (L (App (VAR "_k3") [VAR "_x4"]))
 
 \end{lstlisting}
+After \icode{tree2tps} our example no longer contains blocks. They have been replaced by continuation functions. In our example this means that block \icode{_b0} has been replaced by function \icode{_r0}. We see that no more \icode{fresh} commands are present. The program is the same as the program of the original version before closure conversion up to renaming of variables. The structure of \icode{Fix} is also a bit different, as the function names and parameters are stored inside the \icode{Fix} command and the function bodies are stored in the subcontinuations \icode{ks}. We have handled the extra compilation commands that were used to describe control flow \icode{Block} and generate fresh variable names \icode{Fresh}.
 \end{landscape}
 \clearpage
 
-
 \begin{landscape}
+\begin{gather*}
+  \cdots \xto{hClos} \boxed{Tps (Fix + Record + Base) Val} \xto{hRecord} \cdots
+\end{gather*}
 \begin{lstlisting}[basicstyle=\fontsize{9}{10}\selectfont\ttfamily]
                                                    R (L (Fix (("_r0",["_closure","_x1"]) ::: Nil)))
                                                                           |
@@ -281,10 +349,16 @@ _env = L (Select 1 (VAR "_closure"))                           -----------------
                                       R (R (L (App (VAR "__k3") [VAR "_k3",VAR "_x4"])))
 
 \end{lstlisting}
+After closure conversion functions have an extra \icode{_closure} argument. Bodies of functions are prefixed with opening the closure and postfixed with creating closures before calling another function. In the previous version of LamToWat we did not get to see this rendering of our example, because it was hoisted immediately.
 \end{landscape}
 \clearpage
 
+
 \begin{landscape}
+\begin{gather*}
+  \cdots \xto{hRecord} \boxed{Tps (Fix + Malloc + Base) Val} \xto{hFix} \cdots
+\end{gather*}
+
 \begin{lstlisting}[basicstyle=\fontsize{9}{10}\selectfont\ttfamily]
                                                   R (L (Fix (("_r0",["_closure","_x1"]) ::: Nil)))
                                                                          |
@@ -316,8 +390,10 @@ _env = L (Load 1 (VAR "_closure"))                           -------------------
 \end{landscape}
 \clearpage
 
-
 \begin{landscape}
+\begin{gather*}
+  \cdots \xto{hFix} \boxed{(Fix (Tps (Malloc + Base) Val))} \xto{tps2wat} \cdots
+\end{gather*}
 \begin{lstlisting}[basicstyle=\fontsize{9}{10}\selectfont\ttfamily]
                                                                     Fix
                                                                      |
@@ -349,7 +425,11 @@ _env = L (Load 1 (VAR "_closure"))        _env = L (Load 1 (VAR "_closure"))    
 \end{landscape}
 \clearpage
 
+
 \begin{landscape}
+\begin{gather*}
+  \cdots \xto{tps2wat} \boxed{Wat} \xto{emit} String
+\end{gather*}
 \begin{lstlisting}
                                                         Fix
                                                          |
@@ -381,9 +461,58 @@ _env = Load 1 (VAR "_closure")      _env = Load 1 (VAR "_closure")           Sto
 \end{landscape}
 \clearpage
 
+
 \section{\label{section:v2printnest}LamToWat Version 2 Transformation of: ((\textbackslash x y -> x + y) 13 29)}
 
 \begin{landscape}
+\begin{gather*}
+  \cdots \xto{lam2tree} \boxed{Tree  (Comp + Fix + Base) Val} \xto{tree2tps} \cdots
+\end{gather*}
+\begin{lstlisting}[basicstyle=\fontsize{6.5}{7.5}\selectfont\ttfamily]
+                                                                                     L Block                                                                                     
+                                                                                        |                                                                                        
+                                                                                   -----------------------------------------------------------------------------------------     
+                                                                                  /                                                                                         \    
+                                                                                  k0                                                                                    VAR "_x0"
+                                                                                  |                                                                                              
+                                                                               L Block                                                                                           
+                                                                                  |                                                                                              
+                                                             -----------------------------------------------------------------------------------                                 
+                                                            /                                                                                   \                                
+                                                            k0                                                                        _x8 = L (GetK "_nxt")                      
+                                                            |                                                                                   |                                
+                                                   _f2 = L (Fresh "f")                                                      R (R (App (VAR "_x1") [INT 29,VAR "_x8"]))           
+                                                            |                                                                                                                    
+                                                   _k3 = L (Fresh "k")                                                                                                           
+                                                            |                                                                                                                    
+                                        R (L (Fix (("_f2",["x","_k3"]) ::: Nil)))                                                                                                
+                                                            |                                                                                                                    
+                                      -------------------------------------------------------------                                                                              
+                                     /                                                             \                                                                             
+                                     ks                                                  _x7 = L (GetK "_nxt")                                                                   
+                                     |                                                             |                                                                             
+                            _f4 = L (Fresh "f")                               R (R (App (LABEL "_f2") [INT 13,VAR "_x7"]))                                                       
+                                     |                                                                                                                                           
+                            _k5 = L (Fresh "k")                                                                                                                                  
+                                     |                                                                                                                                           
+                 R (L (Fix (("_f4",["y","_k5"]) ::: Nil)))                                                                                                                       
+                                     |                                                                                                                                           
+                   --------------------------------------                                                                                                                        
+                  /                                      \                                                                                                                       
+                  ks                   R (R (App (VAR "_k3") [LABEL "_f4"]))                                                                                                     
+                  |                                                                                                                                                              
+_x6 = R (R (Add (VAR "x") (VAR "y")))                                                                                                                                            
+                  |                                                                                                                                                              
+ R (R (App (VAR "_k5") [VAR "_x6"]))                                                                                                                                             
+
+\end{lstlisting}
+\end{landscape}
+\clearpage
+
+\begin{landscape}
+\begin{gather*}
+  \cdots \xto{tree2tps} \boxed{Tps (Fix + Base) Val} \xto{hClos} \cdots
+\end{gather*}
 \begin{lstlisting}[basicstyle=\fontsize{6.5}{7.5}\selectfont\ttfamily]
                                                                           L (Fix (("_r0",["_x1"]) ::: Nil))
                                                                                           |
@@ -414,6 +543,9 @@ VAR "_x1"                        -----------------------------------------------
 \clearpage
 
 \begin{landscape}
+\begin{gather*}
+  \cdots \xto{hClos} \boxed{Tps (Fix + Record + Base) Val} \xto{hRecord} \cdots
+\end{gather*}
 \begin{lstlisting}[basicstyle=\fontsize{4.5}{5.5}\selectfont\ttfamily]
                                                                                                                    R (L (Fix (("_r0",["_closure","_x1"]) ::: Nil)))
                                                                                                                                           |
@@ -456,6 +588,9 @@ _env = L (Select 1 (VAR "_closure"))                               -------------
 \clearpage
 
 \begin{landscape}
+\begin{gather*}
+  \cdots \xto{hRecord} \boxed{Tps (Fix + Malloc + Base) Val} \xto{hFix} \cdots
+\end{gather*}
 \begin{lstlisting}[basicstyle=\fontsize{5.5}{6.5}\selectfont\ttfamily]
                                                                                                            R (L (Fix (("_r0",["_closure","_x1"]) ::: Nil)))
                                                                                                                                   |
@@ -508,6 +643,9 @@ _env = L (Load 1 (VAR "_closure"))                               ---------------
 \clearpage
 
 \begin{landscape}
+\begin{gather*}
+  \cdots \xto{hFix} \boxed{(Fix (Tps (Malloc + Base) Val))} \xto{tps2wat} \cdots
+\end{gather*}
 \begin{lstlisting}[basicstyle=\fontsize{6}{7}\selectfont\ttfamily]
                                                                                                                          Fix
                                                                                                                           |
@@ -548,6 +686,9 @@ _env = L (Load 1 (VAR "_closure"))            _env = L (Load 1 (VAR "_closure"))
 \clearpage
 
 \begin{landscape}
+\begin{gather*}
+  \cdots \xto{tps2wat} \boxed{Wat} \xto{emit} String
+\end{gather*}
 \begin{lstlisting}[basicstyle=\fontsize{6.5}{7.5}\selectfont\ttfamily]
                                                                                                     Fix
                                                                                                      |
