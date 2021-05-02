@@ -6,7 +6,7 @@ Continuation-passing style (CPS) is a time-tested paradigm of functional compila
 
 \begin{figure}
 \begin{gather*}
-  String \xto{parse} IR \xto{transform} IR' \xto{transform'} IR'' \xto{emit} String
+  String \xto{parse} IR \xto{t_1} IR' \xto{t_2} IR'' \xto{emit} String
 \end{gather*}
 \caption{Abstract compiler organization made up of multiple Intermediate Representation (IR) steps}
 \label{fig:comporg}

@@ -10,9 +10,9 @@ The purpose of building LamToWat is to examine and then improve its IR. The comp
 
 LamToWat is a multipass compiler. This means that multiple passes over the IR will be made, each transforming a part of the representation. The complete compiler comprises these IR transformations with additional passes to parse lambda calculus source files and emit WebAssembly, such that it can be compiled and interpreted by the WebAssembly Binary Toolkit (WABT) \autocite{wabt}.
 
-Each compiler pass wil have a type. A type indicates what a compiler pass does. For example, when we transform \icode{Lam} into \icode{Cps} with \icode{lam2cps}, the type of this transformatin is \icode{lam2cps :: Lam -> Cps}. The double colon indicates a type decleration in Haskell. Some transformations need extra functionality, like generating fresh variable names. This functionality or effect will be handled by a helper function. In our case this will be \icode{l2c} which can generate fresh variables, but has a much more complicated type. We will focus on the type of the 'main' function, such as \icode{lam2cps} when comparing the two version of LamToWat.
+Each compiler pass wil have a type. A type indicates what a compiler pass does. For example, when we transform \icode{Lam} into \icode{Cps} with \icode{lam2cps}, the type of this transformatin is \icode{lam2cps :: Lam -> Cps}. The double colon indicates a type decleration in Haskell. Some transformations need extra functionality, like generating fresh variable names. This functionality or effect will be handled by a helper function. For the example this will be \icode{l2c} which can generate fresh variables, but has a much more complicated type. We will focus on the type of the 'main' function, such as \icode{lam2cps} when comparing the two version of LamToWat.
 
-In this version of LamToWat the data types we will be using are \icode{Lam}, \icode{Cps}, and \icode{Wat}. To read in source files we also need the data type \icode{String}.LamToWat will be made up of the following sequences of transformations, see figure \ref{fig:lam2watv1org}.
+In this version of LamToWat the data types we will be using are \icode{Lam}, \icode{Cps}, and \icode{Wat}. To read in source files we also need the data type \icode{String}. LamToWat will be made up of the sequences of transformations in figure \ref{fig:lam2watv1org}.
 
 \begin{figure}
 \begin{gather*}
@@ -22,15 +22,14 @@ In this version of LamToWat the data types we will be using are \icode{Lam}, \ic
 \label{fig:lam2watv1org}
 \end{figure}
 
-% TODO parsec link
-LamToWat is split into a front-end and a back-end. The front-end of the compiler is made up of parsing (\icode{parse}), and CPS conversion (\icode{lam2cps}). We will not discuss  parsing in detail, as the topic is orthogonal to the research in this thesis. We will focus on the IR transformation. We use \icode{parsec} \autocite{parsec} to build a parser for our compiler. The back-end of LamToWat consist of three transformations on the IR: closure conversion, hoisting, and emitting (\icode{cps2wat}). In the first version of the compiler hoisting and closure conversion are combined in \icode{cps2cps}.
+LamToWat is split into a front-end and a back-end. The front-end of the compiler is made up of parsing (\icode{parse}), and CPS conversion (\icode{lam2cps}). We will not discuss  parsing in detail, as the topic is orthogonal to the research in this thesis. We use \icode{parsec} \autocite{parsec} to build a parser for our compiler. The back-end of LamToWat consist of three transformations on the IR: closure conversion, hoisting, and emitting (\icode{cps2wat}). In the first version of the compiler hoisting and closure conversion are combined in \icode{cps2cps}.
 
 The following sections will first describe the data types \icode{Lam}, \icode{Cps}, and \icode{Wat} used in LamToWat with specific attention to \icode{Cps}. We will adhere to the organization of the compiler and discuss the relevant compiler passes over these data types in the order described in figure \ref{fig:lam2watv1org}.
 
 \section{\label{section:datatypes}Data Types}
 The data types of LamToWat will be implemented as Haskell data types. Haskell data types are indicated with the \icode{data} keyword. Every data type has a name, which comes after the keyword. A number of constructors follow separated by vertical bars. Data types can be recursively defined. Type aliases indicated with the \icode{type} keyword are also used; providing new names for existing data types.
 
-First, we give definitions of some types and data types that are used by all passes of the compiler. We define \icode{Var}iables that indicate names of functions and values with simple \icode{String}s. This is a design choice as it allows for nonsense programs that use undefined variables, but also for easy manipulation of variables and generation of variable names. A \icode{Fun}ction is a triple of a function name, list of function parameter names, and a body. A \icode{Fix}point of functions is a list of functions and a final expression.
+First, we give definitions of types and data types that are used by all passes of the compiler. We define \icode{Var}iables that indicate names of functions and values with simple \icode{String}s. This is a design choice as it allows for nonsense programs that use undefined variables, but also for easy manipulation of variables and generation of variable names. A \icode{Fun}ction is a triple of a function name, list of function parameter names, and a body. A \icode{Fix}point of functions is a list of functions and a final expression.
 
 \begin{lstlisting}[language=Haskell]
 type Var = String
@@ -48,7 +47,7 @@ data Val
 \end{lstlisting}
 
 \subsection{\label{subsection:expdata}The Lam Language}
-The \icode{Lam} data type represents the abstract syntax tree (AST) of the lambda calculus. The three constructors for \icode{Lam}bda abstraction and \icode{App}lication encompass the standard definition of the lambda calculus. A constructors for \icode{Add}ition is added to make basic arithmetic possible. The lambda calculus is one of the smallest functional languages that still has many of the interesting properties of functional languages, such as first-class functions and recursion. Moreover, the lambda calculus is well-studied \autocite{barendregt1984lambda}. Programs written in the lambda calculus will be used for testing LamToWat.
+The \icode{Lam} data type represents the abstract syntax tree (AST) of the lambda calculus. The three constructors for \icode{Lam}bda abstraction and \icode{App}lication encompass the standard definition of the lambda calculus. \icode{Val}ues are represented by the \icode{Val} constructor. A constructors for \icode{Add}ition is added to make basic arithmetic possible. The lambda calculus is one of the smallest functional languages that still has many of the interesting properties of functional languages, such as first-class functions and recursion. Moreover, the lambda calculus is well-studied \autocite{barendregt1984lambda}. Programs written in the lambda calculus will be used for testing LamToWat.
 
 \begin{lstlisting}[language=Haskell]
 data Lam
@@ -58,7 +57,7 @@ data Lam
   | Val Val
 \end{lstlisting}
 
-Two programs will be used as running examples throughout this thesis to show how the compilation process works. Their representation in different stages of the compiler can be found in appendix \ref{apdx:a} for both versions of the compiler. In the \icode{Lam} language they are written as follows.
+Two programs will be used as running examples throughout this thesis to show how the compilation process works. Their representation in different stages of both versions of the compiler can be found in appendix \ref{apdx:a}. In the \icode{Lam} language they are written as follows.
 
 \begin{lstlisting}[language=Haskell]
 App (Lam "x" (Add (Val (VAR "x")) (Val (INT 1)))) (Val (INT 41))
@@ -74,7 +73,7 @@ App
 
 The first program applies an anonymous function that adds 1 to its argument \icode{x} to the number 41. The second programs applies a nested anonymous function that adds its arguments to the numbers 13 and 29. Both programs evaluate to the number 42. We choose a program with nested functions and a program without nested functions as examples to display the compilation of this language feature separately.
 
-We provide a parser for the \icode{Lam} language. The accepted syntax is the same as the lambda calculus syntax in Haskell. The symbols \icode{\} and \icode{->} are used for lambda abstraction and a space is used for application. With this syntax the two example programs are written as follows:
+LamToWat provides a parser for the \icode{Lam} language. The accepted syntax is the same as the lambda calculus syntax in Haskell. The symbols \icode{\} and \icode{->} are used for lambda abstraction and a space is used for application. With this syntax the two example programs are written as follows:
 
 \begin{lstlisting}[language=Haskell]
 (\ x -> x + 1) 41
@@ -87,7 +86,7 @@ We provide a parser for the \icode{Lam} language. The accepted syntax is the sam
 \subsection{\label{subsection:cpsdata}The Cps Language}
 We follow the CPS language data type definition and semantics by \citeauthor{DBLP:books/daglib/0022396} \autocite{DBLP:books/daglib/0022396} with some minor adjustments. It is used as IR because it facilitates compiler transformations relevant to functional programming languages. The data type is similar to the control flow graph of a program. Control flow is modeled with functions and function calls. Data flow is modeled with records. LamToWat uses \icode{Cps} to transform nested, higher-order functions to simple functions.
 
-\icode{Cps} functions are made up of a name, argument names, and a body. They are defined in mutually recursive \icode{Fix}ed function blocks. All expressions except \icode{App} and \icode{Val} have a \icode{Cps} continuation as their last argument. Since the \icode{Add}, \icode{Record}, and \icode{Select} expressions produce a value, they name it before continuing. \icode{Val} helps us to define the initial translation into \icode{Cps}. As this expression represents a return statement, it does not adhere to continuation-passing style. No problems are caused by it, because we will make sure that it is the final expression of our programs. This makes it a global return of the program itself, not of a function.
+\icode{Cps} functions are made up of a name, argument names, and a body. They are defined in mutually recursive \icode{Fix}ed function blocks. All expressions except \icode{App} and \icode{Val} have a \icode{Cps} continuation as their last argument. Since the \icode{Add}, \icode{Record}, and \icode{Select} expressions produce a value, they name it before continuing. \icode{Val} represents a final value or return statement, it does not adhere to continuation-passing style. No problems are caused by it, because we will make sure that it is the final expression of our programs. This makes it a global return of the program itself, not of a function.
 
 \begin{lstlisting}[language=Haskell]
 data Cps
@@ -122,7 +121,7 @@ The \icode{Wat} language is a hierarchical, high-level assembly language and a s
 
 We have chosen \icode{Wat} as the output language of LamToWat, because it is a relatively high-level language without first-class functions. It can be easily translated to WebAssembly, but still has enough abstraction to be able to target other languages. The absence of first-class functions requires LamToWat to actually compile the \icode{Lam} language, which does have this feature. By keeping the output of LamToWat as a Haskell data type, we can compare the semantics of the \icode{Lam}, \icode{Cps}, and \icode{Wat} data types more easily.
 
-We see that \icode{Wat} is quite similar to \icode{Cps}, this makes it easy to translate from \icode{Cps} to \icode{Wat} after closure conversion and hosting. The \icode{Record} and \icode{Select} constructors are replaced with \icode{Malloc}, \icode{Store}, and \icode{Load}. The \icode{LABEL} constructor from \icode{Val} is not used, because functions are now represented by integers serving as an index into the module's function list. \icode{Fix} is replaced with a top-level \icode{Fix}, ensuring that there are no nested functions anymore.
+If we look at the data type definition below, we see that \icode{Wat} is quite similar to \icode{Cps}. It is easy to translate from \icode{Cps} to \icode{Wat} after closure conversion and hosting. The \icode{Record} and \icode{Select} constructors are replaced with \icode{Malloc}, \icode{Store}, and \icode{Load}. The \icode{LABEL} constructor from \icode{Val} is not used, because functions are now represented by integers serving as an index into the module's function list. \icode{Fix} is replaced with a top-level \icode{Fix}, ensuring that there are no nested functions anymore.
 
 \begin{lstlisting}[language=Haskell]
 type Wat = Fix Exp
@@ -302,7 +301,7 @@ cps2wat (C.Fix fs e) = (map (fmap c2w) fs,c2w e)
           v2v v         = v
 \end{lstlisting}
 
-In order to run our converted expression we need WABT and indicate where the \icode{wat2wasm} and \icode{wasm-interp} binaries are located. We can then run the command from within a interactive Haskell session with \icode{shake}. A \icode{ghci} session where we would run a converted lambda calculus expression would look as follows:
+In order to run our converted expression we need WABT and indicate where the \icode{wat2wasm} and \icode{wasm-interp} binaries are located. We can then run the command from within a interactive Haskell session with \icode{shake} \autocite{shake}. A \icode{ghci} session where we would run a converted lambda calculus expression would look as follows:
 
 \begin{lstlisting}[language=Haskell]
 > putStrLn $ emit $ cps2wat $ cps2cps $ lam2cps $ parse "(\\ x -> x + 1) 41"
@@ -314,9 +313,9 @@ _start() => i32:42
 \end{lstlisting}
 
 \section{\label{section:summarycps}Discussion}
-In this chapter we have shown how to build a compiler that translates \icode{Lam} into \icode{Wat}. We used three data types: \icode{Lam}, \icode{Cps}, and \icode{Wat}. By applying the transformations \icode{parse}, \icode{lam2cps}, \icode{cps2cps}, and \icode{cps2wat} to a well formatted lambda calculus string, we obtain a low-level language output that can be printed as WebAssembly. By looking at two example lambda expressions that can be found in Appendix \ref{section:v1printsimple} and \ref{section:v1printnest}, we tracked the state of our program throughout the compilation process.
+In this chapter we have shown how to build a compiler that translates \icode{Lam} into \icode{Wat}. We used three data types: \icode{Lam}, \icode{Cps}, and \icode{Wat}. By applying the transformations \icode{parse}, \icode{lam2cps}, \icode{cps2cps}, and \icode{cps2wat} to a well formatted lambda calculus string, we obtain a low-level language output that can be printed as WebAssembly. By looking at two example lambda expressions, we tracked the state of our program throughout the compilation process, see Appendix \ref{section:v1printsimple} and \ref{section:v1printnest}.
 
-We identified problems with the transformations on the data types and the data types itself. These are summarized as follows:
+We identified three problems with the transformations on the data types and the data types itself. These are summarized as follows:
 
 \begin{itemize}
 \item Complex specification of control flow in \icode{lam2cps}\\\\
