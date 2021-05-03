@@ -10,7 +10,7 @@ The purpose of building LamToWat is to examine and then improve its IR. The comp
 
 LamToWat is a multipass compiler. This means that multiple passes over the IR will be made, each transforming a part of the representation. The complete compiler comprises these IR transformations with additional passes to parse lambda calculus source files and emit WebAssembly, such that it can be compiled and interpreted by the WebAssembly Binary Toolkit (WABT) \autocite{wabt}.
 
-Each compiler pass wil have a type. A type indicates what a compiler pass does. For example, when we transform \icode{Lam} into \icode{Cps} with \icode{lam2cps}, the type of this transformatin is \icode{lam2cps :: Lam -> Cps}. The double colon indicates a type decleration in Haskell. Some transformations need extra functionality, like generating fresh variable names. This functionality or effect will be handled by a helper function. For the example this will be \icode{l2c} which can generate fresh variables, but has a much more complicated type. We will focus on the type of the 'main' function, such as \icode{lam2cps} when comparing the two version of LamToWat.
+Each compiler pass wil have a type. A type indicates what a compiler pass does. For example, when we transform \icode{Lam} into \icode{Cps} with \icode{lam2cps}, the type of this transformatin is \icode{lam2cps :: Lam -> Cps}. The double colon indicates a type decleration in Haskell. Some transformations need extra functionality, like generating fresh variable names. This functionality or effect will be handled by a helper function. For the example this will be \icode{l2c}, which can generate fresh variables, but has a much more complicated type. We will focus on the type of the 'main' function, such as \icode{lam2cps} when comparing the two version of LamToWat.
 
 In this version of LamToWat the data types we will be using are \icode{Lam}, \icode{Cps}, and \icode{Wat}. To read in source files we also need the data type \icode{String}. LamToWat will be made up of the sequences of transformations in figure \ref{fig:lam2watv1org}.
 
@@ -144,7 +144,7 @@ The translation of our simple example program \icode{(\ x -> x + 1) 41} into the
 (App (INT 0) [INT 41]))
 \end{lstlisting}
 
-We can emit \icode{Wat} as WebAssembly that can be compiled and interpreted by WABT \autocite{wabt}. When we translate to WebAssembly our program becomes a lot longer and there are many new keywords. WebAssembly requires the programmer to declare some extra information, which leads to a lot of syntactic noise. This information can be deduced from the previous simpler \icode{Wat} expression, so we can emit it automatically, see the following:
+We can emit \icode{Wat} as WebAssembly that can be compiled and interpreted by WABT. When we translate to WebAssembly our program becomes a lot longer and there are many new keywords. WebAssembly requires the programmer to declare some extra information, which leads to a lot of syntactic noise. This information can be deduced from the previous simpler \icode{Wat} expression, so we can emit it automatically, see the following:
 
 \begin{lstlisting}
 (module

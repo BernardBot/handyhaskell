@@ -6,7 +6,7 @@ Continuation-passing style (CPS) is a time-tested paradigm of functional compila
 
 \begin{figure}
 \begin{gather*}
-  String \xto{parse} IR \xto{t_1} IR' \xto{t_2} IR'' \xto{emit} String
+  String \xto{parse} IR_1 \xto{t_1} \cdots \xto{t_{n-1}} IR_n \xto{emit} String
 \end{gather*}
 \caption{Abstract compiler organization made up of multiple Intermediate Representation (IR) steps}
 \label{fig:comporg}
@@ -14,7 +14,15 @@ Continuation-passing style (CPS) is a time-tested paradigm of functional compila
 
 The language that is used by a compiler to represent source code is called an intermediate representation, as can be seen in figure \ref{fig:comporg}. A compiler writer uses an IR to implement optimizations and translations. An IR is designed to make compilation possible and pleasant. This is what CPS provides with its records and continuations. Resulting in a convenient abstraction for data flow and control flow \autocite{bruin2020framevm}.
 
-\textit{We will examine two improvements on CPS in this thesis: easier to write CPS conversion, the ability to type transformations more strongly, and a modular interface for the programmer.} The data structure we will use for this examination is a command tree \autocite{commandtreespoulsen}. Our command tree based IR will have a declarative front-end and a modular structure.
+We will examine the following improvements on CPS in this thesis:
+
+\begin{itemize}
+\item Easier to write CPS conversion.
+\item The ability to type compiler transformations more strongly.
+\item A modular compiler interface for the programmer.
+\end{itemize}
+
+The data structure we will use for this examination is a command tree \autocite{commandtreespoulsen}. Our command tree based IR will have a declarative front-end and a modular structure.
 
 To validate the usefulness of the changes to our IR we will build a small compiler in Haskell \autocite{haskellhomepage} for WebAssembly \autocite{webassemblyhomepage}. Haskell implements languages using data structures, which formalize the specification of a language. Our source language will be the lambda calculus. Even though the lambda calculus is a very simple functional programming language, it has sufficient abstraction to necessitate compilation to a low-level langauge like WebAssembly. The first-class functions of the lambda calculus will need to be translated to the second-class functions of WebAssembly. The compiler will have multiple smaller translation steps and multiple passes over the IR. The translation from the lambda calculus to our IR and the elimination of first-class functions will demonstrate the usefulness of our IR.
 
