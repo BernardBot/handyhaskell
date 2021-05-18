@@ -48,9 +48,9 @@ We will call the data type \icode{Tree} a semantic command tree and \icode{Tps} 
 
 Semantic command trees are well suited for defining the initial translation into CPS. However, the abstract nature of semantic command trees prevents us from defining closure conversion without escaping from its abstraction. The fundamental problem is that continuations are defined as functions in the metalanguage instead of syntactic constructs in the IR itself. This prevents us from doing free variable analysis, which is at the heart of closure conversion.
 
-Syntactic command trees have, as their name implies, syntactic representation of name binding in their constructors. They are specific to the notion of \icode{val}ues in \icode{Cps}. We require a function to translate from our semantic command trees to syntactic command trees in order to compile our lambda calculus source code. Because syntactic and semantic command trees represent the same piece of source code, we conjecture that a function that translates syntactic command trees back into semantic command trees must also exist. We have not implemented such a function yet, see section \ref{section:ctreebetter}.
+Syntactic command trees have, as their name implies, syntactic representation of name binding in their constructors. They are specific to the notion of \icode{Val}ues in \icode{Cps}. We require a function to translate from our semantic command trees to syntactic command trees in order to compile our lambda calculus source code. Because syntactic and semantic command trees represent the same piece of source code, we conjecture that a function that translates syntactic command trees back into semantic command trees must also exist. We have not implemented such a function yet, see section \ref{section:ctreebetter}.
 
-Command trees are implemented using Haskell's Generalised Algebraic Data Type (GADT). A GADT gives us the power to add more types to our IR. The notation of a GADT is somewhat different than the notation of a normal data type. After the \icode{data} keyword we specify a name and type parameters, a \icode{where} keyword follows. Then the different constructors of the GADT are declared. The constructors are given a name followed by \icode{::}. The types of the arguments follow, separated by \icode{->}. Finally, we declare the constructor with its type parameters, which can relate to the types of the arguments.
+Command trees are implemented using Haskell's Generalized Algebraic Data Type (GADT). A GADT gives us the power to add more types to our IR. The notation of a GADT is somewhat different than the notation of a normal data type. After the \icode{data} keyword we specify a name and type parameters, a \icode{where} keyword follows. Then the different constructors of the GADT are declared. The constructors are given a name followed by \icode{::}. The types of the arguments follow, separated by \icode{->}. Finally, we declare the constructor with its type parameters, which can relate to the types of the arguments.
 
 Command trees are defined by a GADT as follows:
 
@@ -117,7 +117,7 @@ data Malloc :: Sig where
 data Empty :: Sig where
 \end{lstlisting}
 
-If we look at the definition of commands above, we can see that our original constructors \icode{Add}, \icode{App}, \icode{Fix} from the \icode{Cps} data type are here. The \icode{Val} constructor will be modeled by the \icode{Leaf} constructor. The \icode{Val} type is the same as in \icode{Cps}. The four compilation commands represent a continuation store (\icode{Getk,Setk}), command concatenation (\icode{Block}), and fresh variable name generation (\icode{Fresh}). We also have the \icode{Malloc} commands to represent the heap operations of \icode{Wat}.
+If we look at the definition of commands above, we can see that our original constructors \icode{Add}, \icode{App}, \icode{Fix} from the \icode{Cps} data type are here. The \icode{Val} constructor will be modeled by the \icode{Leaf} constructor. The \icode{Val} type is the same as in \icode{Cps}. The four compilation commands represent a continuation store (\icode{GetK,SetK}), command concatenation (\icode{Block}), and fresh variable name generation (\icode{Fresh}). We also have the \icode{Malloc} commands to represent the heap operations of \icode{Wat}.
 
 We take a look at the signatures of the commands to see how they are structured. The \icode{Block} and \icode{Fix} command are the only ones that have subcontinuations. The \icode{Void} type indicates that there are no subcontinuations. \icode{Fix} has a subcontinuation for every function definition. This is required by the constructor itself as the natural number \icode{n} appears in both the function name with arguments and subcontinuations. The \icode{App} command does not have a continuation, which will lead to some trouble when trying to concatenate it with other commands. The return type of commands indicates that commands will bind to a variable \icode{Val}, or only produce a side-effect \icode{()}.
 
@@ -143,7 +143,7 @@ Node (L (Fix (("f", ["x"]) ::: Nil))) ((\ () ->
 Node (R (App (VAR "f") [INT 41])) Nil None))
 \end{lstlisting}
 
-The syntactic syntax is similar to its semantic counterpart. The main difference is that function variables have been replaced with strings. In this case we use xthe empty string \icode{""} to represents continuations that take \icode{()} as an argument.
+The syntactic syntax is similar to its semantic counterpart. The main difference is that function variables have been replaced with strings. In this case we use the empty string \icode{""} to represents continuations that take \icode{()} as an argument.
 
 \begin{lstlisting}[language=Haskell]
 Node (L (Fix (("f", ["x"]) ::: Nil))) ((
@@ -221,7 +221,7 @@ t2t (Node (R (R (Add v1 v2))) Nil (Some k)) = do
 t2t (Node (R (R (App v vs))) Nil None) =
   return (app v vs)
 t2t (Node (R (L (Fix fxs))) bs (Some k)) = do
-  bs' <- mapM (\ b -> t2t (b ())) bsx
+  bs' <- mapM (\ b -> t2t (b ())) bs
   k' <- t2t (k ())
   return (fix' fxs bs' k')
 t2t (Node (L (SetK x v)) Nil (Some k)) =
@@ -251,7 +251,7 @@ The compilation of \icode{Add} shows the instantiation of variables in the metal
 
 The \icode{SetK} and \icode{GetK} commands update and fetch named continuations. In our case there is only a continuation that is named \icode{_nxt}. The \icode{Block} command tells us to compile the continuation \icode{k} by passing it \icode{VAR x} and wrap it in a continuation function with name \icode{r} and argument {x}. We set the continuation \icode{_nxt} to the function label \icode{LABEL r}. We extend the body of the block with a final application of the continuation function \icode{r} to the result \icode{v} and compile with the updated continuation list. Finally, we create the continuation function and give it the compiled body \icode{b'} as continuation.
 
-After tree compilation we obtain a \icode{Tps} with the commands \icode{Fix} and \icode{Base}. We have done two tranformations to obtain the same result as with \icode{Cps}. However, these transformations are significantly easier to write and the conversion from \icode{Tree} to \icode{Tps} only has to be written once if we keep the command set that \icode{Tree} has now.
+After tree compilation we obtain a \icode{Tps} with the commands \icode{Fix} and \icode{Base}. We have done two transformations to obtain the same result as with \icode{Cps}. However, these transformations are significantly easier to write and the conversion from \icode{Tree} to \icode{Tps} only has to be written once if we keep the command set that \icode{Tree} has now.
 
 \subsection{\label{subsection:closconvert2}Closure Conversion}
 Now that we have eliminated the \icode{Comp} commands we can closure convert our syntactic command tree. We will follow the same approach as in the previous version of LamToWat: collect names of expression and use these to construct records. We will make the assumption that the only place where expressions are named (and thus our environment is extended) is in the join-point of a node and in functions. We do not hoist our function definitions to the top level immediately. We now have an extra transformation for this.
@@ -381,7 +381,7 @@ _start() => i32:42
 \end{lstlisting}
 
 \section{\label{section:ctreebetter}Command Tree Improvements}
-In this section we will explore the design space for command trees and discusss the shortcomings of the second version of LamToWat. During the development of the LamToWat compiler a number of different command trees were examined to see if they could provide us with a replacement for \icode{Cps}. We will discuss some of the relevant features here.
+In this section we will explore the design space for command trees and discuss the shortcomings of the second version of LamToWat. During the development of the LamToWat compiler a number of different command trees were examined to see if they could provide us with a replacement for \icode{Cps}. We will discuss some of the relevant features here.
 
 % blocks
 Although command trees provide a useful abstraction for language implementers, it does require knowledge of the block model for control flow. Command trees help the programmer somewhat by providing metacontinuation store, which can be manipulated with the \icode{SetK} and \icode{GetK} commands. The language implementer will still need to wrap certain parts of code inside a block and fetch the right continuation at the right point. The responsibility is now put on the compiler writer, who has to compile the semantic command tree into a syntactic command tree.
