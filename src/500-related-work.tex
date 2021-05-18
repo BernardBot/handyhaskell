@@ -4,7 +4,7 @@
 In this chapter we will look at some of the theory behind the compilation scheme used in this thesis: monads and denotational semantics. Lastly, we will look at recent work on the extension of algebraic effects.
 
 \section{\label{section:freemonad}The Free Monad}
-Both the command tree and the \icode{Compute} data type are a specialization of the free monad \autocite{2008data}. The free monad arises naturally when composing functors. In mathematical terms a functor is a mapping between categories \autocite{barr1990category}. In practical terms a functor is something that can be mapped over. A list is an example of a functor. We will take as our example functor a modified version of the \icode{Maybe} data type and show what happens when we compose it with itself \autocite{freemonadsforall}. It describes a programming language where we either \icode{Stop} with execution or sound a \icode{Bell} and continue.
+Both the command tree and the \icode{Compute} data type are a specialization of the free monad \autocite{swierstra2008data}. The free monad arises naturally when composing functors. In mathematical terms a functor is a mapping between categories \autocite{barr1990category}. In practical terms a functor is something that can be mapped over. A list is an example of a functor. We will take as our example functor a modified version of the \icode{Maybe} data type and show what happens when we compose it with itself \autocite{freemonadsforall}. It describes a programming language where we either \icode{Stop} with execution or sound a \icode{Bell} and continue.
 
 \begin{lstlisting}[language=Haskell]
 data Program a = Stop | Bell a
@@ -16,7 +16,7 @@ p1 :: Program (Program (Program a))
 p1 = Bell (Bell Stop)
 \end{lstlisting}
 
-We see that our type grows with our expression. Both \icode{p0} and \icode{p1} should have the type \icode{Program a}. We want a function of type \icode{Program (Program a) -> Program a} that removes the nesting of functors. What we need is a fix-point of a functor.
+We see that our type grows with our expression. Both \icode{p0} and \icode{p1} should have the type \icode{Program a}. We want a function of type \icode{Program (Program a) -> Program a} that removes the nesting of functors. What we need is a fixpoint of a functor.
 
 \begin{lstlisting}[language=Haskell]
 data Fix f where
@@ -62,7 +62,7 @@ instance Functor (G f) where
 \end{lstlisting}
 
 \section{\label{section:opmonad}The Operational Monad}
-In this section we will derive the command tree monad and show how it relates to modular denotational semantics. We follow the style of the paper \citetitle{DBLP:conf/haskell/KiselyovI15} \autocite{DBLP:conf/haskell/KiselyovI15}, which gives a derivation of the freer monad, a close relative of the command tree. The main problem the command tree and its relatives address is: expressing side- computation in a composable/modular manner. We will start by unpacking this definition.
+In this section we will derive the command tree monad and show how it relates to modular denotational semantics. We follow the style of the paper \citetitle{DBLP:conf/haskell/KiselyovI15} \autocite{DBLP:conf/haskell/KiselyovI15}, which gives a derivation of the freer monad, a close relative of the command tree. The main problem the command tree and its relatives address is: expressing side-effectful computation in a composable/modular manner. We will start by unpacking this definition.
 
 A side-effect can be understood as an interaction of an expression with its context \autocite{DBLP:conf/tacs/CartwrightF94}. A concrete example is the communication between a number of clients and a central server. A side-effect is a request from a client to the server. This can be a request for some data or an action. From this it follows immediately that we can model side effects with data types that specify such a request. A trivial example is a ping request:
 
@@ -104,7 +104,7 @@ prettyping =
   unit ((i + j) `div` 2)
 \end{lstlisting}
 
-If we substitute our requests for commands and add sub-continuations to \icode{Compute} we obtain our command tree. 
+If we substitute our requests for commands and add subcontinuations to \icode{Compute} we obtain our command tree. 
 
 In this and the previous section we have shown that command trees arise when we want to nest functors or model requests. This corresponds nicely to the objectives of modular denotational semantics where we work with semantic language modules that may have effects.
 
@@ -113,7 +113,7 @@ In this section we will give a short introduction to modular denotational semant
 
 A denotational semantics is made up of three things: terms, values, and effects. We represent all three with Haskell constructs. A semantics is modular when we are able to split and extend all three components. In Haskell open unions give us the power to do this for terms and values. To model effects we will need monads: either monad transformers or the free monad depending on which approach we choose.
 
-Now we will give an example of a modular denotational semantics for a simple language that can manipulate one memory cell \icode{fetch, set} and do addition \icode{add, R}. We will illustrate the relation between monad transformers and algebraic effects \cite{DBLP:conf/haskell/SchrijversPWJ19}. One can be translated into the other and vice-versa. Both approaches allow one to construct an interpreter for our toy language. We will use Haskell typeclasses to represent modular interfaces for terms and highlight the relation by providing instances for both. The typeclasses are defined as follows:
+Now we will give an example of a modular denotational semantics for a simple language that can manipulate one memory cell \icode{fetch, set} and do addition \icode{add, int}. We will illustrate the relation between monad transformers and algebraic effects \cite{DBLP:conf/haskell/SchrijversPWJ19}. One can be translated into the other and vice-versa. Both approaches allow one to construct an interpreter for our toy language. We will use Haskell typeclasses to represent modular interfaces for terms and highlight the relation by providing instances for both. The typeclasses are defined as follows:
 
 \begin{lstlisting}[language=Haskell]
 class Cell d where
@@ -161,7 +161,7 @@ data Freer' cmd d where
 data Cmd = Get | Put Int
 \end{lstlisting}
 
-We can now give instances for our typeclasses, which look almost the same. We now constrain our commands instead of an effect typeclass.
+We can now give instances for our typeclasses, which look almost the same. We now contrain our commands instead of an effect typeclass.
 
 \begin{lstlisting}[language=Haskell]
 instance Cmd :<: cmd => Cell (Freer' cmd Int) where
@@ -178,7 +178,7 @@ instance Cmd :<: cmd => Addition (Freer' cmd Int) where
   int = return
 \end{lstlisting}
 
-We will also have to define a handler for \icode{Cmd} commands called \icode{} as follows.
+We will also have to define a handler for \icode{Cmd} commands called \icode{hCmd} as follows.
 
 \begin{lstlisting}[language=Haskell]
 hCmd :: Cmd :<: cmd => Freer' cmd a -> Int -> Freer' cmd (a, Int)
@@ -189,7 +189,7 @@ hCmd (Impure cmd k) s = case prj cmd of
   _            -> Impure cmd (\ d -> hCmd (k d) s)
 \end{lstlisting}
 
-We see that both approaches allow us to define instances for our language terms modularly. Both approaches use constraints to make the instances modular: monad transformers use typeclass constraints, while algebraic effects use constraints on the open union of commands.
+We see that both approaches allow us to define instances for our language terms modularly. Both approaches use constraints to make the instances modular: monad transformers use typeclass constraints, while algebraic effects use contraints on the open union of commands.
 
 Why did we use modular denotational semantics to write a compiler? Denotational semantics are very useful because they lead to a method of proving equality of terms of a language. When two terms have the same denotational value, they have the same meaning and one can be replaced by the other. This gives rise to many optimizations, which are provably correct.
 
@@ -199,6 +199,6 @@ One of the goals of a compiler is to optimize code, thus one can see where denot
 
 Algebraic effects are able to model many effectful operations. However, there are some constructs that can not be given a proper semantics using algebraic effects. In this thesis we specialized our semantic command trees to syntactic command trees in order to perform variable analysis for closure conversion. It may be possible to instead generalize the notion of effects to tackle this problem. In this section we discuss two extensions of algebraic effects: scoped effects and latent effects.
 
-The paper \citetitle{DBLP:conf/haskell/WuSH14} \autocite{DBLP:conf/haskell/WuSH14} presents two approaches to extending algebraic effect with scoping constructs. Scoping constructs are constructs that are given meaning by scoping handlers, such as exception handlers. What makes scoping handlers different from normal handlers is that they create a local scope in which the impact of an effect is contained. The two roles of scoping handlers, semantics and scoping, conflict and lead to undesired interaction. By decoupling semantics and scoping and  scoping in the syntax this problem may be solved. The first solution presented in the paper adds scope markers to the syntax of algebraic effects, which indicate the start and end of a scope. This solution plays nicely with free monad infrastructure already present, but gives the user the possibility to go wrong by having unbalanced markers. The second solution uses higher-order syntax and requires a new version of the free monad. A specification of how a handler traverses higher-order signatures (commands) is needed too. The upside of higher-order syntax is their expressiveness and no risk of unbalanced markers.
+The paper \citetitle{DBLP:conf/haskell/WuSH14} \autocite{DBLP:conf/haskell/WuSH14} presents two approaches to extending algebraic effect with scoping constructs. Scoping constructs are constructs that are given meaning by scoping handlers, such as exception handlers. What makes scoping handlers different from normal handlers is that they create a local scope in which the impact of an effect is contained. The two roles of scoping handlers, semantics and scoping, conflict and lead to undesired interaction. By decoupling semantics and scoping and encorporating scoping in the syntax this problem may be solved. The first solution presented in the paper adds scope markers to the syntax of algebraic effects, which indicate the start and end of a scope. This solution plays nicely with free monad infrastructure already present, but gives the user the possibility to go wrong by having unbalanced markers. The second solution uses higher-order syntax and requires a new version of the free monad. A specification of how a handler traverses higher-order signatures (commands) is needed too. The upside of higher-order syntax is their expressivenes and no risk of unbalanced markers.
 
-The paper \citetitle{} \autocite{latenteffects} builds on the idea of scoped effects. Latent effects may postpone computations for later execution. They address the requirements that algebraic effects should always be expressible as a function with a certain type and satisfy the algebraic property. An example of a postponed computation is a function abstraction, which can not be modeled with algebraic effects. The central idea of latent effects is that when a handler is applied to a signature it may decorate the return type of a computation with latent effects. Latent effects live inside latent effect trees, which are an even higher-order version of the free monads presented in the scoped effects paper.
+The paper \citetitle{latenteffects} \autocite{latenteffects} builds on the idea of scoped effects. Latent effects may postpone computations for later execution. They address the requirements that algebraic effects should always be expressible as a function with a certain type and satisfy the algebraic property. An example of a postponed computation is a function abstraction, which can not be modeled with algebraic effects. The central idea of latent effects is that when a handler is applied to a signature it may decorate the return type of a computation with latent effects. Latent effects live inside latent effect trees, which are an even higher-order version of the free monads presented in the scoped effects paper.

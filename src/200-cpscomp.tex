@@ -8,9 +8,9 @@ What makes CPS favorable as an IR is that it makes control flow and data flow ex
 
 The purpose of building LamToWat is to examine and then improve its IR. The complexity of CPS conversion and difficulties with the untyped IR transformations will become apparent. If we can improve upon the already favorable features of CPS, we are creating a better IR to program in. Although we are not concerned with the peripherals of the compiler, an IR is not used in a vacuum. We want to examine the compiler passes that map to and from the IR as well as the ones that map to the IR itself.
 
-LamToWat is a multi-pass compiler. This means that multiple passes over the IR will be made, each transforming a part of the representation. The complete compiler comprises these IR transformations with additional passes to parse lambda calculus source files and emit WebAssembly, such that it can be compiled and interpreted by the WebAssembly Binary Toolkit () \autocite{wabt}.
+LamToWat is a multipass compiler. This means that multiple passes over the IR will be made, each transforming a part of the representation. The complete compiler comprises these IR transformations with additional passes to parse lambda calculus source files and emit WebAssembly, such that it can be compiled and interpreted by the WebAssembly Binary Toolkit (WABT) \autocite{wabt}.
 
-Each compiler pass wilt have a type. A type indicates what a compiler pass does. For example, when we transform \icode{Lam} into \icode{Cps} with \icode{2cps}, the type of this  is \icode{lam2cps :: Lam -> Cps}. The double colon indicates a type declaration in Haskell. Some transformations need extra functionality, like generating fresh variable names. This functionality or effect will be handled by a helper function. For the example this will be \icode{l2c}, which can generate fresh variables, but has a much more complicated type. We will focus on the type of the 'main' function, such as \icode{lam2cps} when comparing the two version of LamToWat.
+Each compiler pass wil have a type. A type indicates what a compiler pass does. For example, when we transform \icode{Lam} into \icode{Cps} with \icode{lam2cps}, the type of this transformatin is \icode{lam2cps :: Lam -> Cps}. The double colon indicates a type decleration in Haskell. Some transformations need extra functionality, like generating fresh variable names. This functionality or effect will be handled by a helper function. For the example this will be \icode{l2c}, which can generate fresh variables, but has a much more complicated type. We will focus on the type of the 'main' function, such as \icode{lam2cps} when comparing the two version of LamToWat.
 
 In this version of LamToWat the data types we will be using are \icode{Lam}, \icode{Cps}, and \icode{Wat}. To read in source files we also need the data type \icode{String}. LamToWat will be composed of the sequences of transformations in figure \ref{fig:lam2watv1org}.
 
@@ -22,7 +22,7 @@ In this version of LamToWat the data types we will be using are \icode{Lam}, \ic
 \label{fig:lam2watv1org}
 \end{figure}
 
-LamToWat is split into a front-end and a back-end. The front-end of the compiler is made up of parsing (\icode{parse}), and CPS conversion (\icode{lam2cps}). We will not discuss  parsing in detail, as the topic is orthogonal to the research in this thesis. We use \icode{parsec} \autocite{parsec} to build a parser for our compiler. The back-end of LamToWat consist of three transformations on the IR: closure conversion, hoisting, and emitting (\icode{cps2}). In the first version of the compiler hoisting and closure conversion are combined in \icode{cps2cps}.
+LamToWat is split into a front-end and a back-end. The front-end of the compiler is made up of parsing (\icode{parse}), and CPS conversion (\icode{lam2cps}). We will not discuss  parsing in detail, as the topic is orthogonal to the research in this thesis. We use \icode{parsec} \autocite{parsec} to build a parser for our compiler. The back-end of LamToWat consist of three transformations on the IR: closure conversion, hoisting, and emitting (\icode{cps2wat}). In the first version of the compiler hoisting and closure conversion are combined in \icode{cps2cps}.
 
 The following sections will first describe the data types \icode{Lam}, \icode{Cps}, and \icode{Wat} used in LamToWat with specific attention to \icode{Cps}. We will adhere to the organization of the compiler and discuss the relevant compiler passes over these data types in the order described in figure \ref{fig:lam2watv1org}.
 
@@ -170,15 +170,15 @@ The first seven lines of the printed WebAssembly program declare that there is o
 Transformations or compiler passes of LamToWat will be implemented as Haskell functions. These functions will transform the data types of the previous section. A transformation can convert a data type to a different data type, or to the same data type with certain properties. A graph representation of the example lambda programs throughout the compilation process can be found in Appendix \ref{section:v1printsimple} and \ref{section:v1printnest}.
 
 \subsection{\label{subsection:cpsconvert}CPS Conversion}
-CPS conversion will transform the \icode{Lam} data type into the \icode{Cps} data type and is the second transformation of LamToWat, see figure \ref{fig:lam2watv1org}. By converting our program to continuation-passing style we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and use a meta-continuation (a continuation in the  Haskell) to indicate the order of expressions.
+CPS conversion will transform the \icode{Lam} data type into the \icode{Cps} data type and is the second transformation of LamToWat, see figure \ref{fig:lam2watv1org}. By converting our program to continuation-passing style we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and use a metacontinuation (a continuation in the metalangauge Haskell) to indicate the order of expressions.
 
-\citeauthor{DBLP:books/daglib/0022396} describes a CPS conversion function that takes an extra meta-continuation as argument. It also assumes some way of generating fresh variable names, which is not further specified. In Haskell the signature of such a  would look as follows. It uses \icode{State} for fresh variable name generation.
+\citeauthor{DBLP:books/daglib/0022396} describes a CPS conversion function that takes an extra metacontinuation as argument. It also assumes some way of generating fresh variable names, which is not further specified. In Haskell the signature of such a fuction would look as follows. It uses \icode{State} for fresh variable name generation.
 
 \begin{lstlisting}[language=Haskell]
 l2c :: Lam -> (Val -> State Int Cps) -> State Int Cps
 \end{lstlisting}
 
-\icode{l2c} is split up into cases for each constructor of \icode{Lam}. Converting \icode{Val} is trivial: apply the meta-continuation \icode{c} to it. To convert the anonymous function \icode{Lam} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the  \icode{c}. We convert the body of the function \icode{e}, giving it a meta-continuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{Fix} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
+\icode{l2c} is split up into cases for each constructor of \icode{Lam}. Converting \icode{Val} is trivial: apply the metacontinuation \icode{c} to it. To convert the anonymous function \icode{Lam} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the metacontinuation \icode{c}. We convert the body of the function \icode{e}, giving it a metacontinuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{Fix} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
 
 \begin{lstlisting}[language=Haskell]
 l2c (Val v) c = c v
@@ -186,7 +186,7 @@ l2c (Lam x e) c = do
   f <- fresh "f"
   k <- fresh "k"
   c' <- c (LABEL f)
-   <- l2c e $ \ z -> return $ App (VAR k) [z]
+  cf <- l2c e $ \ z -> return $ App (VAR k) [z]
   return $ Fix [(f,[x,k],cf)] c'
 l2c (App e1 e2) c = do
   r <- fresh "r"
@@ -200,7 +200,7 @@ l2c (Add e1 e2) c = do
   l2c e1 $ \ v1 -> l2c e2 $ \ v2 -> return $ Add v1 v2 x c'
 \end{lstlisting}
 
-How the \icode{l2c} function works is not obvious. We have to generate variable names, pass these to the continuation and sometimes wrap the resulting values in a \icode{Fix}. This is quite complex, control flow should be easier to describe. For binary operators like \icode{App} and \icode{Add} we want to evaluate the left argument first (arbitrarily chosen order), the right argument second and finally add the two resulting values. We would like to write something like the following instead of generating a variable name and exposing the meta-continuation.
+How the \icode{l2c} function works is not obvious. We have to generate variable names, pass these to the continuation and sometimes wrap the resulting values in a \icode{Fix}. This is quite complex, control flow should be easier to describe. For binary operators like \icode{App} and \icode{Add} we want to evaluate the left argument first (arbitrarily chosen order), the right argument second and finally add the two resulting values. We would like to write something like the following instead of generating a variable name and exposing the metacontinuation.
 
 \begin{lstlisting}[language=Haskell]
 l2c' (Add e1 e2) = do
@@ -217,7 +217,7 @@ Closure conversion transforms the \icode{Cps} data type into the \icode{Cps} dat
 There are many approaches to generating closures. We take an approach optimized for simplicity. We implement closures as records, where the first element is a function pointer (implemented as a \icode{LABEL}) and the second element is the environment of free variables. We use effects to keep track of variables (\icode{ask},\icode{local}) in scope and to hoist functions to the top-level (\icode{tell}), which makes the type of \icode{c2c} the following:
 
 \begin{lstlisting}[language=Haskell]
-c2c :: Cps ->  [Fun Cps] (Reader [Var]) Cps
+c2c :: Cps -> WriterT [Fun Cps] (Reader [Var]) Cps
 \end{lstlisting}
 
 The cases for \icode{Fix} and \icode{App} are at the heart of the transformation. For the other constructors we simply update the environment with their assigned names.
@@ -319,7 +319,7 @@ We identified three problems with the transformations on the data types and the 
 
 \begin{itemize}
 \item Complex specification of control flow in \icode{lam2cps}\\\\
-\icode{lam2cps} is itself written in Continuation-Passing Style. It requires us to expose the meta-continuation. This leads to a confusing specification of control flow where the programmer needs to constantly switch between continuation and .
+\icode{lam2cps} is itself written in Continuation-Passing Style. It requires us to expose the metacontinuation. This leads to a confusing specification of control flow where the programmer needs to constantly switch between continuation and metacontinuation.
 \item No types to indicate change of \icode{Cps} after \icode{cps2cps}\\\\
 Closure conversion has type \icode{cps2cps :: Cps -> Cps}. The \icode{Cps} data type is free to contain nested \icode{Fix} expressions. We want to guarantee that functions are no longer nested. All function definitions should be contained in a single, top-level \icode{Fix}. The bodies of the \icode{Fix} should be made up of expressions containing only addition, records, and application.
 
