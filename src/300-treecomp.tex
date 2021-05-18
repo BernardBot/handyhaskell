@@ -117,7 +117,7 @@ data Malloc :: Sig where
 data Empty :: Sig where
 \end{lstlisting}
 
-If we look at the definition of commmands above, we can see that our original constructors \icode{Add}, \icode{App}, \icode{Fix} from the \icode{Cps} data type are here. The \icode{Val} constructor will be modeled by the \icode{Leaf} constructor. The \icode{Val} type is the same as in \icode{Cps}. The four compilation commands represent a continuation store (\icode{Getk,Setk}), command concatenation (\icode{Block}), and fresh variable name generation (\icode{Fresh}). We also have the \icode{Malloc} commands to represent the heap operations of \icode{Wat}.
+If we look at the definition of commands above, we can see that our original constructors \icode{Add}, \icode{App}, \icode{Fix} from the \icode{Cps} data type are here. The \icode{Val} constructor will be modeled by the \icode{Leaf} constructor. The \icode{Val} type is the same as in \icode{Cps}. The four compilation commands represent a continuation store (\icode{Getk,Setk}), command concatenation (\icode{Block}), and fresh variable name generation (\icode{Fresh}). We also have the \icode{Malloc} commands to represent the heap operations of \icode{Wat}.
 
 We take a look at the signatures of the commands to see how they are structured. The \icode{Block} and \icode{Fix} command are the only ones that have subcontinuations. The \icode{Void} type indicates that there are no subcontinuations. \icode{Fix} has a subcontinuation for every function definition. This is required by the constructor itself as the natural number \icode{n} appears in both the function name with arguments and subcontinuations. The \icode{App} command does not have a continuation, which will lead to some trouble when trying to concatenate it with other commands. The return type of commands indicates that commands will bind to a variable \icode{Val}, or only produce a side-effect \icode{()}.
 
@@ -165,7 +165,7 @@ class (sub :: Sig) :<: (sup :: Sig) where
   inj :: sub n b p r q -> sup n b p r q
 \end{lstlisting}
 
-The typeclass \icode{:<:} allows us to inject data types into an open union automatically. We use smart constructors to mitegate the syntactic overhead of injecting \autocite{DBLP:conf/popl/LiangHJ95} even further. For example to lift our \icode{Add} command into the command tree we can define the following function. The constraint \icode{Base :<: cmd} ensures that \icode{Add} is located somewhere in the commands of the command tree. We will rarely use the original commands and mostly use their smart constructors when writing our tree transformations.
+The typeclass \icode{:<:} allows us to inject data types into an open union automatically. We use smart constructors to mitigate the syntactic overhead of injecting \autocite{DBLP:conf/popl/LiangHJ95} even further. For example to lift our \icode{Add} command into the command tree we can define the following function. The constraint \icode{Base :<: cmd} ensures that \icode{Add} is located somewhere in the commands of the command tree. We will rarely use the original commands and mostly use their smart constructors when writing our tree transformations.
 
 \begin{lstlisting}[language=Haskell]
 add :: Base :<: cmd => Val -> Val -> Var -> Tps cmd ()
