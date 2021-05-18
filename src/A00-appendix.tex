@@ -294,7 +294,7 @@ _x3 = R (R (Add (VAR "x") (INT 1)))  R (R (App (LABEL "_f1") [INT 41,VAR "_x4"])
 R (R (App (VAR "_k2") [VAR "_x3"]))                                                         
 
 \end{lstlisting}
-The most notable novelty in the command tree based CPS conversion is the use of the extensible sum constructors \icode{L} and \icode{R} and the use of a \icode{Block}. \icode{Block}s are used to bind parts of code together and replace the metacontinuation of the original version. If we take the code outside the block it would end with an application of \icode{_f1}. Since applications do not have a continuation, any code after it would be discarded. Since in this case the application is the last thing that happens it does not really matter, but when we more than one application in our expression it becomes a problem. Continuations will be dropped. This is not the behavior we want, so we use \icode{Block}s instead.
+The most notable novelty in the command tree based CPS conversion is the use of the extensible sum constructors \icode{L} and \icode{R} and the use of a \icode{Block}. \icode{Block}s are used to bind parts of code together and replace the meta-continuation of the original version. If we take the code outside the block it would end with an application of \icode{_f1}. Since applications do not have a continuation, any code after it would be discarded. Since in this case the application is the last thing that happens it does not really matter, but when we more than one application in our expression it becomes a problem. Continuations will be dropped. This is not the behavior we want, so we use \icode{Block}s instead.
 \end{landscape}
 \clearpage
 
@@ -319,7 +319,7 @@ VAR "_x1"                    -----------------------------------------
            R (L (App (VAR "_k3") [VAR "_x4"]))
 
 \end{lstlisting}
-After \icode{tree2tps} our example no longer contains blocks. They have been replaced by continuation functions. In our example this means that block \icode{_b0} has been replaced by function \icode{_r0}. We see that no more \icode{fresh} commands are present. The program is the same as the program of the original version before closure conversion up to renaming of variables. The structure of \icode{Fix} is also a bit different, as the function names and parameters are stored inside the \icode{Fix} command and the function bodies are stored in the subcontinuations \icode{ks}. We have handled the extra compilation commands that were used to describe control flow \icode{Block} and generate fresh variable names \icode{Fresh}.
+After \icode{tree2tps} our example no longer contains blocks. They have been replaced by continuation functions. In our example this means that block \icode{_b0} has been replaced by function \icode{_r0}. We see that no more \icode{fresh} commands are present. The program is the same as the program of the original version before closure conversion up to renaming of variables. The structure of \icode{Fix} is also a bit different, as the function names and parameters are stored inside the \icode{Fix} command and the function bodies are stored in the  \icode{ks}. We have handled the extra compilation commands that were used to describe control flow \icode{Block} and generate fresh variable names \icode{Fresh}.
 \end{landscape}
 \clearpage
 
