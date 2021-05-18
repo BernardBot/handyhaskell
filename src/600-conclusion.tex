@@ -4,7 +4,7 @@
 
 In this thesis we have examined how CPS can be improved upon as an IR in three ways: simpler control flow specification, typed transformations, and a modular interface. We have proposed command trees as a solution, which help both language implementers and compiler writers. Our new compilation scheme is validated by using it to implement LamToWat, a compiler that translates the lambda calculus into WebAssembly.
 
-We started by discussing a reference implementation of LamToWat and showed how the source code is transformed by CPS conversion, closure conversion, and emitting. We identified three shortcomings of the IR: complex specification of CPS conversion, no types to show that functions are not nested, and constructor duplication when emitting.
+We started by discussing a refence implementation of LamToWat and showed how the source code is transformed by CPS conversion, closure conversion, and emitting. We identified three shortcomings of the IR: complex specification of CPS conversion, no types to show that functions are not nested, and constructor duplication when emitting.
 
 We proposed command trees as the solution to these shortcomings. There are two types of command trees: semantic and syntactic. We had to split our data type because the semantic command trees did not allow for variable analysis, which is essential to closure conversion. We conjecture the possibility of an isomorphism between the two types of command trees.
 
