@@ -10,7 +10,7 @@ The purpose of building LamToWat is to examine and then improve its IR. The comp
 
 LamToWat is a multipass compiler. This means that multiple passes over the IR will be made, each transforming a part of the representation. The complete compiler comprises these IR transformations with additional passes to parse lambda calculus source files and emit WebAssembly, such that it can be compiled and interpreted by the WebAssembly Binary Toolkit (WABT) \autocite{wabt}.
 
-Each compiler pass wil have a type. A type indicates what a compiler pass does. For example, when we transform \icode{Lam} into \icode{Cps} with \icode{lam2cps}, the type of this transformatin is \icode{lam2cps :: Lam -> Cps}. The double colon indicates a type decleration in Haskell. Some transformations need extra functionality, like generating fresh variable names. This functionality or effect will be handled by a helper function. For the example this will be \icode{l2c}, which can generate fresh variables, but has a much more complicated type. We will focus on the type of the 'main' function, such as \icode{lam2cps} when comparing the two version of LamToWat.
+Each compiler pass 08 have a type. A type indicates what a compiler pass does. For example, when we transform \icode{Lam} into \icode{Cps} with \icode{lam2cps}, the type of this 0 is \icode{lam2cps :: Lam -> Cps}. The double colon indicates a type 1 in Haskell. Some transformations need extra functionality, like generating fresh variable names. This functionality or effect will be handled by a helper function. For the example this will be \icode{l2c}, which can generate fresh variables, but has a much more complicated type. We will focus on the type of the 'main' function, such as \icode{lam2cps} when comparing the two version of LamToWat.
 
 In this version of LamToWat the data types we will be using are \icode{Lam}, \icode{Cps}, and \icode{Wat}. To read in source files we also need the data type \icode{String}. LamToWat will be composed of the sequences of transformations in figure \ref{fig:lam2watv1org}.
 
@@ -170,15 +170,15 @@ The first seven lines of the printed WebAssembly program declare that there is o
 Transformations or compiler passes of LamToWat will be implemented as Haskell functions. These functions will transform the data types of the previous section. A transformation can convert a data type to a different data type, or to the same data type with certain properties. A graph representation of the example lambda programs throughout the compilation process can be found in Appendix \ref{section:v1printsimple} and \ref{section:v1printnest}.
 
 \subsection{\label{subsection:cpsconvert}CPS Conversion}
-CPS conversion will transform the \icode{Lam} data type into the \icode{Cps} data type and is the second transformation of LamToWat, see figure \ref{fig:lam2watv1org}. By converting our program to continuation-passing style we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and use a metacontinuation (a continuation in the metalangauge Haskell) to indicate the order of expressions.
+CPS conversion will transform the \icode{Lam} data type into the \icode{Cps} data type and is the second transformation of LamToWat, see figure \ref{fig:lam2watv1org}. By converting our program to continuation-passing style we make control flow and data flow explicit. In practice this means that we generate fresh variable names for intermediate values and use a 1 (a continuation in the metalanguage Haskell) to indicate the order of expressions.
 
-\citeauthor{DBLP:books/daglib/0022396} describes a CPS conversion function that takes an extra metacontinuation as argument. It also assumes some way of generating fresh variable names, which is not further specified. In Haskell the signature of such a fuction would look as follows. It uses \icode{State} for fresh variable name generation.
+\citeauthor{DBLP:books/daglib/0022396} describes a CPS conversion function that takes an extra meta-continuation as argument. It also assumes some way of generating fresh variable names, which is not further specified. In Haskell the signature of such a function would look as follows. It uses \icode{State} for fresh variable name generation.
 
 \begin{lstlisting}[language=Haskell]
 l2c :: Lam -> (Val -> State Int Cps) -> State Int Cps
 \end{lstlisting}
 
-\icode{l2c} is split up into cases for each constructor of \icode{Lam}. Converting \icode{Val} is trivial: apply the metacontinuation \icode{c} to it. To convert the anonymous function \icode{Lam} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the metacontinuation \icode{c}. We convert the body of the function \icode{e}, giving it a metacontinuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{Fix} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
+\icode{l2c} is split up into cases for each constructor of \icode{Lam}. Converting \icode{Val} is trivial: apply the meta-continuation \icode{c} to it. To convert the anonymous function \icode{Lam} we generate fresh variables \icode{f} and \icode{k} to name the function and its continuation. We pass the function name to the meta-continuation \icode{c}. We convert the body of the function \icode{e}, giving it a meta-continuation which calls the continuation with the result \icode{z}. Finally, we construct a \icode{Fix} to contain our converted function and update continuation \icode{c'}. The \icode{App} and \icode{Add} cases follow a similar approach.
 
 \begin{lstlisting}[language=Haskell]
 l2c (Val v) c = c v
@@ -200,7 +200,7 @@ l2c (Add e1 e2) c = do
   l2c e1 $ \ v1 -> l2c e2 $ \ v2 -> return $ Add v1 v2 x c'
 \end{lstlisting}
 
-How the \icode{l2c} function works is not obvious. We have to generate variable names, pass these to the continuation and sometimes wrap the resulting values in a \icode{Fix}. This is quite complex, control flow should be easier to describe. For binary operators like \icode{App} and \icode{Add} we want to evaluate the left argument first (arbitrarily chosen order), the right argument second and finally add the two resulting values. We would like to write something like the following instead of generating a variable name and exposing the metacontinuation.
+How the \icode{l2c} function works is not obvious. We have to generate variable names, pass these to the continuation and sometimes wrap the resulting values in a \icode{Fix}. This is quite complex, control flow should be easier to describe. For binary operators like \icode{App} and \icode{Add} we want to evaluate the left argument first (arbitrarily chosen order), the right argument second and finally add the two resulting values. We would like to write something like the following instead of generating a variable name and exposing the meta-continuation.
 
 \begin{lstlisting}[language=Haskell]
 l2c' (Add e1 e2) = do
@@ -319,7 +319,7 @@ We identified three problems with the transformations on the data types and the 
 
 \begin{itemize}
 \item Complex specification of control flow in \icode{lam2cps}\\\\
-\icode{lam2cps} is itself written in Continuation-Passing Style. It requires us to expose the metacontinuation. This leads to a confusing specification of control flow where the programmer needs to constantly switch between continuation and metacontinuation.
+\icode{lam2cps} is itself written in Continuation-Passing Style. It requires us to expose the meta-continuation. This leads to a confusing specification of control flow where the programmer needs to constantly switch between continuation and meta-continuation.
 \item No types to indicate change of \icode{Cps} after \icode{cps2cps}\\\\
 Closure conversion has type \icode{cps2cps :: Cps -> Cps}. The \icode{Cps} data type is free to contain nested \icode{Fix} expressions. We want to guarantee that functions are no longer nested. All function definitions should be contained in a single, top-level \icode{Fix}. The bodies of the \icode{Fix} should be made up of expressions containing only addition, records, and application.
 
